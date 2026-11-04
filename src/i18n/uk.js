@@ -28,8 +28,9 @@ export default {
     refUnderDial: 'Передній бік механізму, під циферблатом',
     refFinished: 'Готовий годинник',
     close: 'Закрити',
+    version: 'Версія {version}',
     view: 'Вигляд',
-    viewLabel: 'Скинути вигляд',
+    resetView: 'Скинути вигляд',
     crown: 'Заводна головка',
 
     resume: 'Продовжити',

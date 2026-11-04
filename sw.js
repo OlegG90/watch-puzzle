@@ -1,7 +1,7 @@
 // Everything the game needs is cached on install, so it plays with no connection.
 // Bump VERSION whenever any listed file changes: that is what delivers the update.
 
-const VERSION = 'godynnykar-v3';
+const VERSION = 'watch-puzzle-0.1.3';
 const FILES = [
   './',
   'index.html',
@@ -13,6 +13,7 @@ const FILES = [
   'vendor/three.module.min.js',
   'vendor/RoomEnvironment.js',
   'src/main.js',
+  'src/version.js',
   'src/i18n/en.js',
   'src/i18n/index.js',
   'src/i18n/uk.js',
@@ -42,7 +43,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      // Only this game's old caches: other projects can share this github.io origin.
+      .then((keys) => keys.filter((k) => k !== VERSION && /^(watch-puzzle|godynnykar)-/.test(k)))
+      .then((old) => Promise.all(old.map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

@@ -28,8 +28,9 @@ export default {
     refUnderDial: 'The front of the movement, under the dial',
     refFinished: 'The finished watch',
     close: 'Close',
+    version: 'Version {version}',
     view: 'View',
-    viewLabel: 'Reset the view',
+    resetView: 'Reset the view',
     crown: 'Winding crown',
 
     resume: 'Continue',

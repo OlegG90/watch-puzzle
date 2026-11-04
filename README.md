@@ -2,7 +2,9 @@
 
 A phone game: assemble a gold pocket watch part by part, then wind it, and it shows the real time.
 
-**Play it:** <https://olegg90.github.io/watch-puzzle/>. On a phone, you can install it from the browser menu, and it then plays offline.
+**Play it:** <https://olegg90.github.io/watch-puzzle/>. On a phone, you can install it from the browser menu, and it then plays offline. This site shows the latest release, not the latest code on `main`.
+
+See the [releases](https://github.com/OlegG90/watch-puzzle/releases) and the [changelog](CHANGELOG.md) for what has changed.
 
 The game is available in English (the default) and Ukrainian, with a switcher in the menu and during play.
 
@@ -32,6 +34,14 @@ The game plays this way but cannot be installed: browsers require HTTPS for inst
 npm test
 ```
 
+## Releasing
+
+1. On a branch, set the new version in `src/version.js`, `package.json` and `sw.js`, and describe it in `CHANGELOG.md`. A test checks that they agree.
+2. Merge the pull request into `main`. This does not change the site.
+3. Create the release from `main`, for example `gh release create v0.1.3 --target main`. Publishing it starts the `Deploy release` workflow, which checks that the tag matches the version, runs the tests and publishes the game to GitHub Pages.
+
+Installed copies update themselves: the new version downloads on the next launch and shows on the launch after that.
+
 ## Layout
 
 - `src/game/`: the rules, the parts catalogue, and the movement's geometry and kinematics, with no graphics.
@@ -39,5 +49,5 @@ npm test
 - `src/i18n/`: all the game's text. A new string must be added to every language, and a test checks this.
 - `src/ui/`: gestures and sound.
 - `src/main.js`: connects all of this to the interface.
-- `sw.js`: the offline cache. When you change any game file, increase `VERSION`, or installed copies will not update.
+- `sw.js`: the offline cache. Installed copies only update when the version changes, so every change to a game file needs a new version.
 - `vendor/`: Three.js 0.170.0 (MIT license).
