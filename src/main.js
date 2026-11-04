@@ -14,6 +14,7 @@ import { attachScrollHint } from './ui/scrollHint.js';
 import { VERSION } from './version.js';
 
 const SAVE_KEY = 'godynnykar.save.v1';
+const EXPERT_SAVE_KEY = 'godynnykar.save.expert.v1';
 const RECORDS_KEY = 'godynnykar.records.v1';
 const SOUND_KEY = 'godynnykar.sound.v1';
 const LANGUAGE_KEY = 'godynnykar.language.v1';
@@ -118,8 +119,8 @@ function renderMenu() {
 function fillMenu() {
   dom.menuButtons.replaceChildren();
   const records = store.read(RECORDS_KEY) ?? {};
-  const saved = store.read(SAVE_KEY);
-  if (LEVELS.includes(saved?.level)) {
+  const saves = [SAVE_KEY, EXPERT_SAVE_KEY].map((key) => store.read(key)).filter((s) => LEVELS.includes(s?.level));
+  for (const saved of saves) {
     const g = new Game(saved.level, saved);
     const note = t('resumeNote', { level: levelName(saved.level), placed: g.placed, total: g.total });
     dom.menuButtons.append(menuButton(t('resume'), note, () => startGame(saved.level, saved)));
@@ -132,7 +133,7 @@ function fillMenu() {
       `${levelNote(level)}${bestText}`,
       () => startGame(level),
     );
-    if (saved) button.classList.add('ghost');
+    if (saves.length) button.classList.add('ghost');
     dom.menuButtons.append(button);
   }
 }
@@ -153,9 +154,12 @@ function menuButton(title, subtitle, onClick) {
 
 // ---- Starting and saving
 
+/** Expert keeps its own save, so it never costs a game in progress on the other levels. */
+const saveKey = (level) => (level === 'expert' ? EXPERT_SAVE_KEY : SAVE_KEY);
+
 function startGame(level, saved = null) {
   // A new game replaces the save, so ask before throwing real progress away.
-  const existing = store.read(SAVE_KEY);
+  const existing = store.read(saveKey(level));
   if (!saved && existing?.installed?.length && !existing.wound && !confirm(t('confirmRestart'))) return;
   game = new Game(level, saved);
   dom.btnTool.hidden = !game.usesScrewdriver;
@@ -180,7 +184,7 @@ function startGame(level, saved = null) {
 function save() {
   if (!game) return;
   if (!document.hidden) syncElapsed();
-  store.write(SAVE_KEY, game);
+  store.write(saveKey(game.level), game);
 }
 
 /** Brings the running clock up to date; between ticks it can lag by a second. */
@@ -229,9 +233,10 @@ function refresh() {
   dom.btnTool.classList.toggle('nudge', loose > 0 && game.tool !== TOOLS.SCREWDRIVER);
   if (loose === 0 && game.tool === TOOLS.SCREWDRIVER) setTool(TOOLS.TWEEZERS);
 
-  const open = game.openOilPoints().length;
-  dom.oilBadge.hidden = open === 0;
-  dom.oilBadge.textContent = open;
+  const openOil = game.openOilPoints().length;
+  dom.oilBadge.hidden = openOil === 0;
+  dom.oilBadge.textContent = openOil;
+  if (openOil === 0 && game.tool === TOOLS.OILER) setTool(TOOLS.TWEEZERS);
   scene.syncOil(game);
 
   renderTray();
@@ -366,7 +371,10 @@ function setTool(tool) {
   dom.btnTool.classList.toggle('active', tool === TOOLS.SCREWDRIVER);
   dom.btnOiler.classList.toggle('active', tool === TOOLS.OILER);
   if (tool === TOOLS.OILER) setOilInfo();
-  else if (wasOiling) setInfo(null);
+  else if (wasOiling) {
+    setInfo(null);
+    scene.resetView(); // moving in on a point should not outlast the oiler
+  }
   if (tool === TOOLS.OILER || wasOiling) showPanel('tray');
 }
 
@@ -396,6 +404,10 @@ function renderOils() {
 
 function onOilerButton() {
   sound.unlock();
+  if (game.tool !== TOOLS.OILER && !game.openOilPoints().length) {
+    toast(t('noOilPoints'));
+    return;
+  }
   setTool(game.tool === TOOLS.OILER ? TOOLS.TWEEZERS : TOOLS.OILER);
   selectedKind = null;
   renderTray();
@@ -403,10 +415,6 @@ function onOilerButton() {
 
 function oilAt(x, y) {
   const points = game.openOilPoints();
-  if (!points.length) {
-    toast(t('noOilPoints'));
-    return;
-  }
   if (!selectedOil) {
     toast(t('pickOilFirst'));
     return;
@@ -606,6 +614,7 @@ function onHint() {
   game.hints += 1;
   const { type, part, point } = suggestion;
   if (type === 'oil') {
+    scene.resetView(); // the point may be off screen after moving in on another
     if (!onFace(point, scene.facing())) scene.turnTo(point.side);
     selectedOil = point.oil;
     selectedKind = null;
@@ -692,6 +701,7 @@ function enterWinding() {
   stopTimer();
   showPanel('wind');
   dom.windFill.style.width = `${(windClicks / WIND_CLICKS) * 100}%`;
+  scene.resetView();
   if (scene.facing() !== 'dial') scene.turnTo('dial');
 }
 

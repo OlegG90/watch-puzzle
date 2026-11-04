@@ -4,7 +4,8 @@
 //   oil      the only kind this point accepts
 //   after    the fitted part that makes the point appear
 //   before   the later part that would cover it, and is refused until it is oiled
-//   side, pos, hitZ, hitR   as for a part, so a fingertip finds it the same way
+//   side, pos, hitZ, hitR   as for a part, so a fingertip finds it the same way;
+//            hitZ is the part's outer face here, so the drop sits on top of it
 
 import { POS } from './layout.js';
 
@@ -18,7 +19,7 @@ const point = (id, oil, side, pos, hitZ, after, before) => ({
 
 export const OIL_POINTS = [
   // The barrel
-  point('barrelArborLower', 'heavy', 'train', POS.barrel, 2, 'arbor', 'barrelCover'),
+  point('barrelArborLower', 'heavy', 'train', POS.barrel, 5.3, 'arbor', 'barrelCover'),
   point('barrelArborUpper', 'heavy', 'train', POS.barrel, 5.6, 'barrelBridge', 'ratchet'),
 
   // Pivots in the bridges, reached through their jewels until the case back closes
@@ -41,10 +42,10 @@ export const OIL_POINTS = [
   point('balanceLower', 'light', 'dial', POS.balance, -2, 'balance', 'dial'),
 
   // The motion works
-  point('cannon', 'medium', 'dial', O, -4.5, 'cannon', 'hour'),
-  point('minute', 'medium', 'dial', POS.minute, -2.6, 'minute', 'minuteBridge'),
-  point('hour', 'medium', 'dial', O, -3.3, 'hour', 'dial'),
-  point('setting', 'medium', 'dial', POS.setting, -2.6, 'setting', 'dial'),
+  point('cannon', 'medium', 'dial', O, -6.5, 'cannon', 'hour'),
+  point('minute', 'medium', 'dial', POS.minute, -3.9, 'minute', 'minuteBridge'),
+  point('hour', 'medium', 'dial', O, -6.1, 'hour', 'dial'),
+  point('setting', 'medium', 'dial', POS.setting, -3.1, 'setting', 'dial'),
 ];
 
 export const OIL_POINT_BY_ID = Object.fromEntries(OIL_POINTS.map((p) => [p.id, p]));

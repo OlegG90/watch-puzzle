@@ -157,9 +157,14 @@ test('a part that would cover an unoiled point is refused and names it', () => {
   assert.equal(game.place('barrelCover').ok, true);
 });
 
-test('the dial waits for a train-side wheel whose lower pivot it would cover', () => {
+test('a part covering a point that has not appeared yet names the missing part', () => {
   const game = new Game('expert');
+  game.installed = new Set(PART_BY_ID.dial.requires); // everything the dial needs, but no escape wheel
+  game.tightened = new Set(game.installed);
   assert.ok(game.unoiledUnder(PART_BY_ID.dial).includes(OIL_POINT_BY_ID.escapeLower));
+  const result = game.place('dial');
+  assert.equal(result.reason, 'blocked');
+  assert.ok(result.missing.includes(PART_BY_ID.escape));
 });
 
 test('the hint covers oiling', () => {

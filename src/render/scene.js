@@ -25,6 +25,8 @@ const SMOOTH_FRAME_MS = 1000 / 30;
 const BEAT_FRAME_MS = 1000 / BEATS_PER_SECOND;
 const SET_HANDS_MS = 1600;
 const HINT_MS = 2600;
+const MAX_ZOOM = 6;
+const OIL_CLEAR_PX = 16; // a tap this much nearer one point than the next clearly means it
 const OIL_FOCUS_ZOOM = 2.6; // close points stand a fingertip apart at this zoom
 const OIL_FOCUS_MS = 420;
 const OIL_MARKER_R = 0.7;
@@ -366,7 +368,7 @@ export class WatchScene {
   }
 
   zoomBy(factor) {
-    this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 1, 6);
+    this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 1, MAX_ZOOM);
     this.clampPan();
     this.invalidate();
   }
@@ -454,8 +456,8 @@ export class WatchScene {
   }
 
   /**
-   * The oil point under a fingertip. A wrong oil costs a mistake, so when two points
-   * are too close together on screen to tell apart, `unclear` says so instead of guessing.
+   * The oil point under a fingertip. A wrong oil costs a mistake, so when a tap falls
+   * about as near to two points, `unclear` says so instead of guessing.
    * @returns {{point: object|null, unclear: boolean}}
    */
   oilPointAt(points, x, y) {
@@ -469,17 +471,15 @@ export class WatchScene {
       .sort((a, b) => a.distance - b.distance);
     const [first, second] = near;
     if (!first) return { point: null, unclear: false };
-    const close = second && Math.hypot(first.x - second.x, first.y - second.y) < MIN_TOUCH_RADIUS;
-    const unclear = close && second.distance - first.distance < MIN_TOUCH_RADIUS / 2;
-    return { point: first.point, unclear };
+    return { point: first.point, unclear: Boolean(second) && second.distance - first.distance < OIL_CLEAR_PX };
   }
 
-  /** Moves in on a point, so that its neighbours stand apart. */
+  /** Moves in on a point, so that its neighbours stand apart. Closer each time it is needed. */
   focusOn(point) {
     this.syncPose();
     const target = new THREE.Vector3(...point.pos, point.hitZ).applyMatrix4(this.watch.matrixWorld);
     const fromZoom = this.zoom;
-    const toZoom = Math.max(fromZoom, OIL_FOCUS_ZOOM);
+    const toZoom = Math.min(MAX_ZOOM, Math.max(fromZoom * 1.5, OIL_FOCUS_ZOOM));
     const fromPan = this.pan.clone();
     this.addTween(OIL_FOCUS_MS, (t) => {
       this.zoom = fromZoom + (toZoom - fromZoom) * t;

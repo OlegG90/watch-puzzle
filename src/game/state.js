@@ -120,7 +120,9 @@ export class Game {
     const unoiled = this.unoiledUnder(part);
     if (unoiled.length) {
       this.mistakes += 1;
-      return { ok: false, reason: 'unoiled', unoiled };
+      // A point whose own part is not in yet cannot be oiled, so name the part instead.
+      const missing = unoiled.filter((p) => !this.installed.has(p.after)).map((p) => PART_BY_ID[p.after]);
+      return missing.length ? { ok: false, reason: 'blocked', missing } : { ok: false, reason: 'unoiled', unoiled };
     }
     this.installed.add(part.id);
     return { ok: true, auto: this.#fitSmallParts() };
