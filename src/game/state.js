@@ -43,6 +43,11 @@ export class Game {
     return this.level === 'master' || part.basic;
   }
 
+  /** In Apprentice, every screw fits and tightens itself. */
+  get usesScrewdriver() {
+    return this.level === 'master';
+  }
+
   get total() {
     return this.playable.length;
   }
