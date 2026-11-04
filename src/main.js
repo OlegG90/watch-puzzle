@@ -39,7 +39,7 @@ const dom = {
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
   reference: $('reference'), referenceViews: $('reference-views'), viewPanel: $('view-panel'),
-  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'), loupe: $('loupe'),
+  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'), loupe: $('loupe'), trayBox: $('tray-box'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -93,7 +93,7 @@ function setPlaying(playing) {
 /** Which of the bench's three panels is showing. */
 function showPanel(panel) {
   const oiling = panel === 'tray' && game?.tool === TOOLS.OILER;
-  dom.tray.hidden = panel !== 'tray' || oiling;
+  dom.trayBox.hidden = panel !== 'tray' || oiling;
   dom.oils.hidden = !oiling;
   dom.info.hidden = panel !== 'tray';
   dom.wind.hidden = panel !== 'wind';

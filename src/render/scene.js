@@ -145,15 +145,19 @@ export class WatchScene {
 
   /** Renders the area around the finger enlarged, sharp rather than stretched, and copies it out. */
   drawLoupe() {
-    const { canvas, x, y } = this.loupe;
+    const { canvas, context, x, y } = this.loupe;
     const { width, height } = this;
     const across = width / LOUPE_ZOOM;
     const down = height / LOUPE_ZOOM;
+    const shown = canvas.clientWidth;
     this.camera.setViewOffset(width, height, x - across / 2, y - down / 2, across, down);
+    // Only the middle gets copied, and on a phone drawing the whole frame twice would show.
+    this.renderer.setScissor((width - shown) / 2, (height - shown) / 2, shown, shown);
+    this.renderer.setScissorTest(true);
     this.renderer.render(this.scene, this.camera);
+    this.renderer.setScissorTest(false);
     this.camera.clearViewOffset();
     const size = canvas.width;
-    const context = canvas.getContext('2d');
     context.clearRect(0, 0, size, size);
     const left = (this.canvas.width - size) / 2;
     const top = (this.canvas.height - size) / 2;
@@ -165,7 +169,7 @@ export class WatchScene {
     const size = Math.round(canvas.clientWidth * this.renderer.getPixelRatio());
     canvas.width = size;
     canvas.height = size;
-    this.loupe = { canvas, x, y };
+    this.loupe = { canvas, context: canvas.getContext('2d'), x, y, point: null };
     return this.aim(x, y);
   }
 
