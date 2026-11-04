@@ -9,6 +9,7 @@ import { BEATS_PER_SECOND, dialSeconds, trainAngles } from '../game/train.js';
 import { createMaterials } from './materials.js';
 import { SPIN, buildPart } from './parts3d.js';
 import { ring } from './shapes.js';
+import { trayScale } from './trayScale.js';
 
 const MIN_TOUCH_RADIUS = 44; // CSS px, the size of a comfortable fingertip target
 const REST_PITCH = -0.2;
@@ -495,15 +496,16 @@ export class WatchScene {
   /** Renders one picture per part. Call while the canvas is hidden behind the splash. */
   thumbnails(ids) {
     const shots = ids.map((id) => ({ key: id, ids: [id], side: PART_BY_ID[id].side }));
-    return this.stills(shots, THUMB_PX, THUMB_TILT);
+    return this.stills(shots, THUMB_PX, THUMB_TILT, trayScale);
   }
 
   /**
    * Renders still pictures of groups of parts, fully assembled and framed to fit.
    * @param {{key: string, ids: string[], side: string}[]} shots
+   * @param {(mm: number) => number} fill how much of the picture a subject this large should fill
    * @returns {Map<string, string>} key → image data URL
    */
-  stills(shots, size, tilt) {
+  stills(shots, size, tilt, fill = () => 1) {
     const stage = new THREE.Scene();
     stage.environment = this.scene.environment;
     stage.environmentIntensity = 0.7; // brighter than the bench: pictures sit on a dark card
@@ -531,7 +533,8 @@ export class WatchScene {
       const box = new THREE.Box3().setFromObject(holder);
       const centre = box.getCenter(new THREE.Vector3());
       const dims = box.getSize(new THREE.Vector3());
-      const half = Math.max(dims.x, dims.y, 0.5) * 0.56;
+      const extent = Math.max(dims.x, dims.y, 0.5);
+      const half = (extent * 0.56) / fill(extent);
       Object.assign(camera, { left: -half, right: half, top: half, bottom: -half });
       camera.position.set(centre.x, centre.y, box.max.z + 50);
       camera.lookAt(centre.x, centre.y, centre.z);

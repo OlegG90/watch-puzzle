@@ -25,6 +25,7 @@ const FILES = [
   'src/render/parts3d.js',
   'src/render/scene.js',
   'src/render/shapes.js',
+  'src/render/trayScale.js',
   'src/ui/audio.js',
   'src/ui/gestures.js',
   'src/ui/scrollHint.js',
