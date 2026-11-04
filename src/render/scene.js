@@ -75,16 +75,10 @@ export class WatchScene {
     this.oilMarkers = new Map(); // open oil point id → marker
     this.oilDrops = new THREE.Group();
     this.watch.add(this.oilDrops);
-    const dot = new THREE.SphereGeometry(1, 16, 12);
+    this.oilDot = new THREE.SphereGeometry(1, 16, 12);
     // Markers draw over everything, since a point sits among the wheels; draw() hides the far side's.
-    this.oilMarker = {
-      geometry: dot,
-      material: new THREE.MeshBasicMaterial({ color: 0x00c2ff, depthTest: false, transparent: true }),
-    };
-    this.oilDrop = {
-      geometry: dot,
-      material: new THREE.MeshStandardMaterial({ color: 0xd98f1e, roughness: 0.12, metalness: 0.1 }),
-    };
+    this.oilMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x00c2ff, depthTest: false, transparent: true });
+    this.oilDropMaterial = new THREE.MeshStandardMaterial({ color: 0xd98f1e, roughness: 0.12, metalness: 0.1 });
     this.tweens = [];
     this.yaw = REST_YAW;
     this.pitch = REST_PITCH;
@@ -212,7 +206,7 @@ export class WatchScene {
   syncOil(game) {
     this.clearOil();
     for (const point of game.openOilPoints()) {
-      const marker = new THREE.Mesh(this.oilMarker.geometry, this.oilMarker.material);
+      const marker = new THREE.Mesh(this.oilDot, this.oilMarkerMaterial);
       marker.position.set(...point.pos, point.hitZ);
       marker.scale.setScalar(OIL_MARKER_R);
       marker.renderOrder = 10;
@@ -222,7 +216,7 @@ export class WatchScene {
     }
     for (const id of game.oiled) {
       const point = OIL_POINT_BY_ID[id];
-      const drop = new THREE.Mesh(this.oilDrop.geometry, this.oilDrop.material);
+      const drop = new THREE.Mesh(this.oilDot, this.oilDropMaterial);
       const outwards = point.side === 'train' ? 1 : -1;
       drop.position.set(...point.pos, point.hitZ + outwards * OIL_DROP_R * 0.5);
       drop.scale.set(OIL_DROP_R, OIL_DROP_R, OIL_DROP_R * 0.6);
@@ -436,17 +430,11 @@ export class WatchScene {
 
   /** The nearest of these parts within its touch radius, of those on the visible side. */
   nearest(parts, x, y) {
-    this.syncPose();
-    const side = this.facing();
     let best = null;
     let bestScore = Infinity;
-    for (const part of parts) {
-      if (!onFace(part, side)) continue;
-      const target = this.slotTarget(part);
-      const distance = Math.hypot(target.x - x, target.y - y);
-      if (distance > target.radius) continue;
+    for (const { part, distance, radius } of this.partsInReach(parts, x, y)) {
       // Compare relative to size, so a screw beats the plate beneath it.
-      const score = distance / target.radius;
+      const score = distance / radius;
       if (score < bestScore) {
         best = part;
         bestScore = score;
@@ -455,23 +443,28 @@ export class WatchScene {
     return best;
   }
 
+  /** Those of these parts on the visible side with this point inside their touch radius. */
+  partsInReach(parts, x, y) {
+    this.syncPose();
+    const side = this.facing();
+    return parts
+      .filter((part) => onFace(part, side))
+      .map((part) => {
+        const target = this.slotTarget(part);
+        return { part, radius: target.radius, distance: Math.hypot(target.x - x, target.y - y) };
+      })
+      .filter(({ distance, radius }) => distance <= radius);
+  }
+
   /**
    * The oil point under a fingertip. A wrong oil costs a mistake, so when a tap falls
    * about as near to two points, `unclear` says so instead of guessing.
    * @returns {{point: object|null, unclear: boolean}}
    */
   oilPointAt(points, x, y) {
-    this.syncPose();
-    const side = this.facing();
-    const near = points
-      .filter((p) => onFace(p, side))
-      .map((point) => ({ point, ...this.slotTarget(point) }))
-      .map((t) => ({ ...t, distance: Math.hypot(t.x - x, t.y - y) }))
-      .filter((t) => t.distance <= t.radius)
-      .sort((a, b) => a.distance - b.distance);
-    const [first, second] = near;
+    const [first, second] = this.partsInReach(points, x, y).sort((a, b) => a.distance - b.distance);
     if (!first) return { point: null, unclear: false };
-    return { point: first.point, unclear: Boolean(second) && second.distance - first.distance < OIL_CLEAR_PX };
+    return { point: first.part, unclear: Boolean(second) && second.distance - first.distance < OIL_CLEAR_PX };
   }
 
   /** Moves in on a point, so that its neighbours stand apart. Closer each time it is needed. */

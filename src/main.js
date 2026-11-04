@@ -74,7 +74,6 @@ let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
 let infoPart = null; // what the info panel describes; null shows the instructions
 let selectedOil = null;
-let oilInfoShown = false; // the info panel is about oil, which infoPart cannot say
 
 // ---- Screens
 
@@ -353,14 +352,11 @@ function toggleSelect(kind) {
 
 function setInfo(part) {
   infoPart = part;
-  oilInfoShown = false;
   dom.infoTitle.textContent = part ? partName(part) : t('pickTitle');
   dom.infoText.textContent = part ? partDesc(part) : t('pickText');
 }
 
 function setOilInfo() {
-  infoPart = null;
-  oilInfoShown = true;
   dom.infoTitle.textContent = selectedOil ? oilName(selectedOil) : t('pickOilTitle');
   dom.infoText.textContent = selectedOil ? oilDesc(selectedOil) : t('pickOilText');
 }
@@ -375,7 +371,7 @@ function setTool(tool) {
     setInfo(null);
     scene.resetView(); // moving in on a point should not outlast the oiler
   }
-  if (tool === TOOLS.OILER || wasOiling) showPanel('tray');
+  showPanel('tray');
 }
 
 // ---- The oiler
@@ -810,7 +806,7 @@ function changeLanguage(code) {
     fillMenu();
     return;
   }
-  if (oilInfoShown) setOilInfo();
+  if (game.tool === TOOLS.OILER) setOilInfo();
   else setInfo(infoPart);
   renderProgress();
   renderTray();
