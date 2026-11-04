@@ -539,6 +539,7 @@ function buildReference() {
 
 function openReference() {
   sound.unlock();
+  stopTimer(); // looking is free, and that includes the clock
   if (!dom.referenceViews.children.length) buildReference();
   show(dom.reference);
   dom.reference.scrollTop = 0;
@@ -729,6 +730,7 @@ function wire() {
   window.addEventListener('popstate', () => {
     if (!dom.reference.hidden) {
       show(null);
+      startTimer();
     } else if (game) {
       save();
       renderMenu();
@@ -774,7 +776,7 @@ function boot() {
   thumbs = new Map([...firstOfKind].map(([kind, id]) => [kind, pictures.get(id)]));
   wire();
   // A reload mid-game lands on the game's history entry: leave it, so Back still works.
-  if (history.state?.game) history.back();
+  if (history.state?.game) history.go(history.state.reference ? -2 : -1);
   renderMenu();
   dom.splash.hidden = true;
 

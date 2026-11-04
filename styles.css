@@ -240,7 +240,7 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
   align-items: center;
   justify-content: safe center;
   gap: 12px;
-  padding: calc(24px + var(--safe-t)) 24px calc(24px + var(--safe-b));
+  padding: calc(24px + var(--safe-t)) calc(24px + var(--safe-r)) calc(24px + var(--safe-b)) calc(24px + var(--safe-l));
   text-align: center;
   overflow-y: auto;
   background: rgba(15, 11, 7, 0.86);
@@ -284,10 +284,10 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
 #result-stars { font-size: 34px; letter-spacing: 6px; color: var(--gold); }
 
 #reference { justify-content: flex-start; background: var(--bench); }
-#btn-reference-close { position: sticky; top: 0; flex: none; align-self: flex-end; z-index: 1; }
+#btn-reference-close { position: sticky; top: var(--safe-t); flex: none; align-self: flex-end; z-index: 1; }
 #reference-views { display: flex; flex-direction: column; gap: 18px; width: min(520px, 100%); }
 #reference-views figure { margin: 0; }
-#reference-views img { display: block; width: 100%; height: auto; }
+#reference-views img { display: block; width: 100%; height: auto; max-height: 92dvh; object-fit: contain; }
 #reference-views figcaption { margin-top: 4px; color: var(--ink-soft); font-size: 13.5px; }
 
 /* A phone on its side: the bench moves to the right, the watch keeps the height. */
@@ -304,7 +304,14 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
     padding-right: var(--safe-r);
   }
   #hud { right: calc(208px + var(--safe-r)); }
-  #tools { right: calc(214px + var(--safe-r)); left: auto; top: calc(58px + var(--safe-t)); width: 62px; flex-direction: column; }
+  #tools {
+    right: calc(214px + var(--safe-r));
+    left: auto;
+    top: calc(58px + var(--safe-t));
+    width: 130px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
   #toast { left: 35%; bottom: 14px; }
   #info { height: 92px; flex: none; }
   #tray {

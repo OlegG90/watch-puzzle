@@ -141,7 +141,8 @@ test('a tap cannot reach parts hidden under the dial or the case back', () => {
 test('the reference pictures show every part but the case back, from the right face', () => {
   const shown = new Set(REFERENCE_VIEWS.flatMap((v) => v.ids));
   for (const p of PARTS) assert.equal(shown.has(p.id), p.id !== 'caseBack', p.id);
-  const [trainSide, underDial] = REFERENCE_VIEWS;
+  const [wheels, trainSide, underDial] = REFERENCE_VIEWS;
+  assert.ok(wheels.ids.includes('centre') && !wheels.ids.includes('trainBridge'));
   assert.ok(trainSide.ids.includes('balance') && !trainSide.ids.includes('cannon'));
   assert.ok(underDial.ids.includes('cannon') && !underDial.ids.includes('dial') && !underDial.ids.includes('hourHand'));
 });

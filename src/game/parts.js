@@ -209,13 +209,15 @@ PARTS.forEach((cover, index) => {
   cover.requires = hidden.map((p) => p.id);
 });
 
-const underDial = (p) => p.side === 'dial' && p.hitZ > PARTS.find((d) => d.id === 'dial').hitZ;
+const DIAL_Z = PARTS.find((p) => p.id === 'dial').hitZ;
 const idsWhere = (test) => PARTS.filter(test).map((p) => p.id);
 
 /** The reference pictures: what each one shows, and from which face. */
 export const REFERENCE_VIEWS = [
-  { key: 'refTrainSide', side: 'train', ids: idsWhere((p) => p.side === 'train' && p.id !== 'caseBack' || p.id === 'mainplate') },
-  { key: 'refUnderDial', side: 'dial', ids: idsWhere((p) => underDial(p) || p.id === 'mainplate') },
+  // The bridges hide the wheels, so the wheels get a picture of their own.
+  { key: 'refWheels', side: 'train', ids: ['mainplate', 'drum', 'barrelCover', 'fourth', 'third', 'escape', 'centre', 'pallet'] },
+  { key: 'refTrainSide', side: 'train', ids: idsWhere((p) => p.id === 'mainplate' || (p.side === 'train' && p.id !== 'caseBack')) },
+  { key: 'refUnderDial', side: 'dial', ids: idsWhere((p) => p.id === 'mainplate' || (p.side === 'dial' && p.hitZ > DIAL_Z)) },
   { key: 'refFinished', side: 'dial', ids: idsWhere((p) => p.id !== 'caseBack') },
 ];
 
