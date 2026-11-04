@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#17120c">
-  <meta name="description" content="Зберіть кишеньковий годинник деталь за деталлю.">
-  <title>Годинникар</title>
+  <meta name="description" content="Assemble a pocket watch, part by part.">
+  <title>Watch Puzzle</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -18,61 +18,63 @@
   </script>
 </head>
 <body>
-  <div id="stage"><canvas id="watch-canvas" aria-label="Механізм годинника"></canvas></div>
+  <div id="stage"><canvas id="watch-canvas" aria-label="Watch movement" data-i18n-label="watchMovement"></canvas></div>
 
   <header id="hud" hidden>
-    <button class="icon-btn" id="btn-menu" aria-label="До меню">☰</button>
+    <button class="icon-btn" id="btn-menu" aria-label="Menu" data-i18n-label="menu">☰</button>
     <div id="progress" aria-live="polite">
       <div id="progress-text"></div>
       <div id="progress-bar"><span></span></div>
     </div>
-    <div id="timer" aria-label="Час збирання"></div>
-    <button class="icon-btn" id="btn-sound" aria-label="Звук">🔊</button>
+    <div id="timer" aria-label="Assembly time" data-i18n-label="assemblyTime"></div>
+    <button class="icon-btn" id="btn-lang" aria-label="Switch language" data-i18n-label="switchLanguage"></button>
+    <button class="icon-btn" id="btn-sound" aria-label="Sound" data-i18n-label="sound">🔊</button>
   </header>
 
   <aside id="tools" hidden>
-    <button class="tool-btn" id="btn-flip" aria-label="Перевернути механізм"><span class="glyph">⟲</span><small>Перевернути</small></button>
-    <button class="tool-btn" id="btn-tool" aria-label="Викрутка"><span class="glyph">🪛</span><small>Викрутка</small><b id="loose-badge" hidden></b></button>
-    <button class="tool-btn" id="btn-hint" aria-label="Підказка"><span class="glyph">💡</span><small>Підказка</small></button>
-    <button class="tool-btn" id="btn-view" aria-label="Скинути вигляд"><span class="glyph">⌖</span><small>Вигляд</small></button>
+    <button class="tool-btn" id="btn-flip" aria-label="Flip the movement" data-i18n-label="flipLabel"><span class="glyph">⟲</span><small data-i18n="flip">Flip</small></button>
+    <button class="tool-btn" id="btn-tool" aria-label="Screwdriver" data-i18n-label="screwdriver"><span class="glyph">🪛</span><small data-i18n="screwdriver">Screwdriver</small><b id="loose-badge" hidden></b></button>
+    <button class="tool-btn" id="btn-hint" aria-label="Hint" data-i18n-label="hint"><span class="glyph">💡</span><small data-i18n="hint">Hint</small></button>
+    <button class="tool-btn" id="btn-view" aria-label="Reset the view" data-i18n-label="viewLabel"><span class="glyph">⌖</span><small data-i18n="view">View</small></button>
   </aside>
 
   <div id="toast" role="status" hidden></div>
 
   <section id="bench" hidden>
     <div id="info"><strong id="info-title"></strong><span id="info-text"></span></div>
-    <div id="tray" role="listbox" aria-label="Деталі"></div>
+    <div id="tray" role="listbox" aria-label="Parts" data-i18n-label="parts"></div>
     <div id="wind" hidden>
-      <div id="wind-text">Заведіть годинник: проведіть пальцем по головці</div>
-      <div id="wind-strip" role="button" aria-label="Заводна головка"></div>
+      <div id="wind-text" data-i18n="windPrompt">Wind the watch: swipe your finger along the crown</div>
+      <div id="wind-strip" role="button" aria-label="Winding crown" data-i18n-label="crown"></div>
       <div id="wind-bar"><span></span></div>
     </div>
     <div id="admire" hidden>
-      <button class="soft-btn" id="btn-admire-flip">Перевернути</button>
-      <button class="soft-btn" id="btn-admire-back">Відкрити кришку</button>
-      <button class="soft-btn" id="btn-admire-menu">До меню</button>
+      <button class="soft-btn" id="btn-admire-flip" data-i18n="flip">Flip</button>
+      <button class="soft-btn" id="btn-admire-back">Open the back</button>
+      <button class="soft-btn" id="btn-admire-menu" data-i18n="toMenu">Back to menu</button>
     </div>
   </section>
 
   <section id="menu" class="screen" hidden>
-    <h1>Годинникар</h1>
-    <p class="lede">Зберіть золотий кишеньковий годинник із розкладених на столі деталей. Коли механізм готовий, заведіть його, і він покаже справжній час.</p>
+    <h1 data-i18n="appTitle">Watch Puzzle</h1>
+    <p class="lede" data-i18n="appIntro">Assemble a gold pocket watch from the parts laid out on the bench. When the movement is ready, wind it and it will show the real time.</p>
     <div id="menu-buttons"></div>
-    <p class="fine">Гра працює без інтернету. Прогрес зберігається на цьому пристрої.</p>
+    <div id="menu-lang" role="group" aria-label="Language" data-i18n-label="language"></div>
+    <p class="fine" data-i18n="offlineNote">Plays without an internet connection. Progress is saved on this device.</p>
   </section>
 
   <section id="result" class="screen" hidden>
-    <h2>Годинник іде!</h2>
+    <h2 data-i18n="watchRuns">The watch is running!</h2>
     <div id="result-stars" aria-hidden="true"></div>
     <p id="result-grade"></p>
     <p id="result-stats" class="fine"></p>
-    <button class="big-btn" id="btn-result-admire">Подивитися на механізм</button>
-    <button class="big-btn ghost" id="btn-result-menu">До меню</button>
+    <button class="big-btn" id="btn-result-admire" data-i18n="seeMovement">See the movement</button>
+    <button class="big-btn ghost" id="btn-result-menu" data-i18n="toMenu">Back to menu</button>
   </section>
 
   <section id="splash" class="screen">
-    <h1>Годинникар</h1>
-    <p id="splash-text" class="lede">Розкладаємо деталі на столі…</p>
+    <h1 data-i18n="appTitle">Watch Puzzle</h1>
+    <p id="splash-text" class="lede" data-i18n="loading">Laying the parts out on the bench…</p>
   </section>
 
   <script type="module" src="src/main.js"></script>

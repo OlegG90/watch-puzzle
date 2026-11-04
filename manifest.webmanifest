@@ -1,8 +1,8 @@
 {
-  "name": "Годинникар",
-  "short_name": "Годинникар",
-  "description": "Зберіть кишеньковий годинник деталь за деталлю.",
-  "lang": "uk",
+  "name": "Watch Puzzle",
+  "short_name": "Watch Puzzle",
+  "description": "Assemble a pocket watch, part by part.",
+  "lang": "en",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

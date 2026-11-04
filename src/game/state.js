@@ -2,6 +2,8 @@
 
 import { PARTS, PART_BY_ID } from './parts.js';
 
+export const MAX_STARS = 3;
+
 export const TOOLS = { TWEEZERS: 'tweezers', SCREWDRIVER: 'screwdriver' };
 
 export class Game {
@@ -192,10 +194,9 @@ function scatter(text, seed) {
   return (h ^ (h >>> 13)) >>> 0;
 }
 
-/** The grade is the point of replaying: mistakes and hints cost, time does not. */
+/** Stars are the point of replaying: mistakes and hints cost, time does not. */
 export function grade(game) {
   const cost = game.mistakes + game.hints * 2;
-  if (cost === 0) return { stars: 3, label: 'Майстерна робота' };
-  if (cost <= game.total / 5) return { stars: 2, label: 'Упевнена рука' };
-  return { stars: 1, label: 'Годинник іде' };
+  if (cost === 0) return MAX_STARS;
+  return cost <= game.total / 5 ? 2 : 1;
 }
