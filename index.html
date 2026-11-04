@@ -35,6 +35,7 @@
     <button class="tool-btn" id="btn-flip" aria-label="Flip the movement" data-i18n-label="flipLabel"><span class="glyph">⟲</span><small data-i18n="flip">Flip</small></button>
     <button class="tool-btn" id="btn-tool" aria-label="Screwdriver" data-i18n-label="screwdriver"><span class="glyph">🪛</span><small data-i18n="screwdriver">Screwdriver</small><b id="loose-badge" hidden></b></button>
     <button class="tool-btn" id="btn-hint" aria-label="Hint" data-i18n-label="hint"><span class="glyph">💡</span><small data-i18n="hint">Hint</small></button>
+    <button class="tool-btn" id="btn-reference" aria-label="Reference pictures" data-i18n-label="referenceLabel"><span class="glyph">📖</span><small data-i18n="reference">Reference</small></button>
     <button class="tool-btn" id="btn-view" aria-label="Reset the view" data-i18n-label="viewLabel"><span class="glyph">⌖</span><small data-i18n="view">View</small></button>
   </aside>
 
@@ -70,6 +71,13 @@
     <p id="result-stats" class="fine"></p>
     <button class="big-btn" id="btn-result-admire" data-i18n="seeMovement">See the movement</button>
     <button class="big-btn ghost" id="btn-result-menu" data-i18n="toMenu">Back to menu</button>
+  </section>
+
+  <section id="reference" class="screen" hidden>
+    <button class="icon-btn" id="btn-reference-close" aria-label="Close" data-i18n-label="close">✕</button>
+    <h2 data-i18n="referenceLabel">Reference pictures</h2>
+    <p class="fine" data-i18n="referenceNote">The finished movement, for comparison. Looking costs nothing.</p>
+    <div id="reference-views"></div>
   </section>
 
   <section id="splash" class="screen">

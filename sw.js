@@ -1,7 +1,7 @@
 // Everything the game needs is cached on install, so it plays with no connection.
 // Bump VERSION whenever any listed file changes: that is what delivers the update.
 
-const VERSION = 'godynnykar-v2';
+const VERSION = 'godynnykar-v3';
 const FILES = [
   './',
   'index.html',
