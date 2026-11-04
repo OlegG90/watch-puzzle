@@ -65,6 +65,7 @@ for (const level of ['apprentice', 'master']) {
       assert.ok(s, 'no suggestion before the end');
       if (s.type === 'tighten') assert.equal(game.tighten(s.part.id), true);
       else assert.equal(game.place(s.part.id).ok, true);
+      if (!game.usesScrewdriver) assert.equal(game.looseScrews().length, 0, `loose screws after ${s.part.id}`);
     }
     assert.equal(game.assembled, true);
     assert.equal(game.mistakes, 0);
@@ -81,14 +82,9 @@ test('apprentice plays fewer parts than master and fits the rest itself', () => 
   assert.equal(m.place('mainplate').auto.length, 0);
 });
 
-test('apprentice never needs the screwdriver', () => {
-  const game = new Game('apprentice');
-  while (!game.assembled) {
-    const { type, part } = game.suggest();
-    assert.equal(type, 'place');
-    game.place(part.id);
-    assert.equal(game.looseScrews().length, 0, `loose screws after ${part.id}`);
-  }
+test('only master uses the screwdriver', () => {
+  assert.equal(new Game('apprentice').usesScrewdriver, false);
+  assert.equal(new Game('master').usesScrewdriver, true);
 });
 
 test('fitting out of order is refused, names the blocker, and counts a mistake', () => {
