@@ -1,0 +1,13 @@
+{
+  "name": "godynnykar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Assemble a pocket watch, part by part, on your phone.",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "start:lan": "node scripts/serve.mjs --lan",
+    "test": "node --test test/",
+    "icons": "node scripts/make-icons.mjs"
+  }
+}

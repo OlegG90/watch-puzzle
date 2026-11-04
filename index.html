@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#17120c">
+  <meta name="description" content="Зберіть кишеньковий годинник деталь за деталлю.">
+  <title>Годинникар</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": {
+        "three": "./vendor/three.module.min.js",
+        "three/addons/RoomEnvironment.js": "./vendor/RoomEnvironment.js"
+    } }
+  </script>
+</head>
+<body>
+  <div id="stage"><canvas id="watch-canvas" aria-label="Механізм годинника"></canvas></div>
+
+  <header id="hud" hidden>
+    <button class="icon-btn" id="btn-menu" aria-label="До меню">☰</button>
+    <div id="progress" aria-live="polite">
+      <div id="progress-text"></div>
+      <div id="progress-bar"><span></span></div>
+    </div>
+    <div id="timer" aria-label="Час збирання"></div>
+    <button class="icon-btn" id="btn-sound" aria-label="Звук">🔊</button>
+  </header>
+
+  <aside id="tools" hidden>
+    <button class="tool-btn" id="btn-flip" aria-label="Перевернути механізм"><span class="glyph">⟲</span><small>Перевернути</small></button>
+    <button class="tool-btn" id="btn-tool" aria-label="Викрутка"><span class="glyph">🪛</span><small>Викрутка</small><b id="loose-badge" hidden></b></button>
+    <button class="tool-btn" id="btn-hint" aria-label="Підказка"><span class="glyph">💡</span><small>Підказка</small></button>
+    <button class="tool-btn" id="btn-view" aria-label="Скинути вигляд"><span class="glyph">⌖</span><small>Вигляд</small></button>
+  </aside>
+
+  <div id="toast" role="status" hidden></div>
+
+  <section id="bench" hidden>
+    <div id="info"><strong id="info-title"></strong><span id="info-text"></span></div>
+    <div id="tray" role="listbox" aria-label="Деталі"></div>
+    <div id="wind" hidden>
+      <div id="wind-text">Заведіть годинник: проведіть пальцем по головці</div>
+      <div id="wind-strip" role="button" aria-label="Заводна головка"></div>
+      <div id="wind-bar"><span></span></div>
+    </div>
+    <div id="admire" hidden>
+      <button class="soft-btn" id="btn-admire-flip">Перевернути</button>
+      <button class="soft-btn" id="btn-admire-back">Відкрити кришку</button>
+      <button class="soft-btn" id="btn-admire-menu">До меню</button>
+    </div>
+  </section>
+
+  <section id="menu" class="screen" hidden>
+    <h1>Годинникар</h1>
+    <p class="lede">Зберіть золотий кишеньковий годинник із розкладених на столі деталей. Коли механізм готовий, заведіть його, і він покаже справжній час.</p>
+    <div id="menu-buttons"></div>
+    <p class="fine">Гра працює без інтернету. Прогрес зберігається на цьому пристрої.</p>
+  </section>
+
+  <section id="result" class="screen" hidden>
+    <h2>Годинник іде!</h2>
+    <div id="result-stars" aria-hidden="true"></div>
+    <p id="result-grade"></p>
+    <p id="result-stats" class="fine"></p>
+    <button class="big-btn" id="btn-result-admire">Подивитися на механізм</button>
+    <button class="big-btn ghost" id="btn-result-menu">До меню</button>
+  </section>
+
+  <section id="splash" class="screen">
+    <h1>Годинникар</h1>
+    <p id="splash-text" class="lede">Розкладаємо деталі на столі…</p>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
