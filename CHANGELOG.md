@@ -2,6 +2,17 @@
 
 Versions follow [Semantic Versioning](https://semver.org/). Each release has a tag and a [GitHub release](https://github.com/OlegG90/watch-puzzle/releases).
 
+## 0.2.0
+
+- Add Expert, a third level: fit every part and oil 19 points with the right one of four oils. A wrong oil is refused and explained, and a part that would cover an unoiled point is refused. Hints cover oiling. Expert has its own save and records.
+- Hold a finger on the movement in Expert to see a magnifier, which marks the point it would oil.
+- Show arrows at the edges of the parts tray when more parts lie beyond. Tapping one scrolls the tray.
+- Draw larger parts larger in the tray, so a screw no longer looks as big as the case.
+- Hide the screwdriver in Apprentice, where screws tighten themselves.
+- The Continue button no longer appears for a game with nothing done.
+- A screwdriver left active by the previous game no longer stays highlighted.
+- The view resets before winding, so a zoomed view cannot hide the dial.
+
 ## 0.1.4
 
 - Fix the test command on Node 22, which stopped the release workflow.
