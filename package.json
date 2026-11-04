@@ -1,6 +1,6 @@
 {
   "name": "watch-puzzle",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "description": "Assemble a pocket watch, part by part, on your phone.",

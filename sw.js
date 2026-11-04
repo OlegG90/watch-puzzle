@@ -1,7 +1,7 @@
 // Everything the game needs is cached on install, so it plays with no connection.
 // Bump VERSION whenever any listed file changes: that is what delivers the update.
 
-const VERSION = 'watch-puzzle-0.1.3';
+const VERSION = 'watch-puzzle-0.1.4';
 const FILES = [
   './',
   'index.html',

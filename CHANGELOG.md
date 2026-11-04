@@ -2,7 +2,15 @@
 
 Versions follow [Semantic Versioning](https://semver.org/). Each release has a tag and a [GitHub release](https://github.com/OlegG90/watch-puzzle/releases).
 
+## 0.1.4
+
+- Fix the test command on Node 22, which stopped the release workflow.
+- The first version published by the release workflow, including everything in 0.1.3.
+
 ## 0.1.3
+
+Released but never published to the site, because the release workflow failed.
+
 
 - Show the version and a link to the GitHub repository in the menu.
 - Show the back of the watch in the menu.
