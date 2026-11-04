@@ -284,19 +284,20 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
 #result-stars { font-size: 34px; letter-spacing: 6px; color: var(--gold); }
 
 #menu-watch { flex: 0 1 auto; width: min(60vw, 240px); max-height: 30dvh; object-fit: contain; }
-#about a { color: var(--gold); }
+#about a { display: inline-block; padding: 12px 8px; color: var(--gold); }
 
-#reference, #view-panel { justify-content: flex-start; background: var(--bench); }
+.overlay { justify-content: flex-start; background: var(--bench); }
 .close-overlay { position: sticky; top: var(--safe-t); flex: none; align-self: flex-end; z-index: 1; }
 #reference-views { display: flex; flex-direction: column; gap: 18px; width: min(520px, 100%); }
-#reference figure, #view-panel figure { margin: 0; }
-#view-panel figure { width: min(520px, 100%); }
-#reference img, #view-panel img { display: block; width: 100%; height: auto; max-height: 92dvh; object-fit: contain; }
+.overlay figure { width: min(520px, 100%); margin: 0; }
+.overlay img { display: block; width: 100%; height: auto; max-height: 92dvh; object-fit: contain; }
 #view-panel img { max-height: 58dvh; }
-#reference figcaption, #view-panel figcaption { margin-top: 4px; color: var(--ink-soft); font-size: 13.5px; }
+.overlay figcaption { margin-top: 4px; color: var(--ink-soft); font-size: 13.5px; }
 
 /* A phone on its side: the bench moves to the right, the watch keeps the height. */
 @media (orientation: landscape) and (max-height: 520px) {
+  #menu-watch { display: none; }
+  #view-panel img { max-height: 42dvh; }
   body.playing #stage { top: calc(56px + var(--safe-t)); bottom: 0; right: calc(208px + var(--safe-r)); }
   #bench {
     top: 0;

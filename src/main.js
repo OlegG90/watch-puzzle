@@ -55,6 +55,8 @@ const store = {
 
 const sound = new Sound(store.read(SOUND_KEY) !== false);
 
+const OVERLAYS = [dom.reference, dom.viewPanel];
+
 let scene;
 let thumbs;
 let game = null;
@@ -69,7 +71,7 @@ let infoPart = null; // what the info panel describes; null shows the instructio
 // ---- Screens
 
 function show(screen) {
-  for (const s of [dom.menu, dom.result, dom.reference, dom.viewPanel]) s.hidden = s !== screen;
+  for (const s of [dom.menu, dom.result, ...OVERLAYS]) s.hidden = s !== screen;
 }
 
 function setPlaying(playing) {
@@ -542,8 +544,12 @@ function buildReference() {
 /** The back of the watch, for the menu and the View panel. Rendered once, at start-up. */
 function renderBackView() {
   const view = REFERENCE_VIEWS.find((v) => v.key === 'refTrainSide');
-  const picture = scene.stills([view], BACK_VIEW_PX, REFERENCE_TILT).get(view.key);
-  for (const img of document.querySelectorAll('.back-view')) img.src = picture;
+  try {
+    const picture = scene.stills([view], BACK_VIEW_PX, REFERENCE_TILT).get(view.key);
+    for (const img of document.querySelectorAll('.back-view')) img.src = picture;
+  } catch (error) {
+    console.warn('The back view could not be drawn', error); // the game plays without it
+  }
 }
 
 /** A full-screen panel over the game. Looking is free, and that includes the clock. */
@@ -556,7 +562,7 @@ function openOverlay(screen) {
   history.pushState({ game: true, overlay: true }, '');
 }
 
-const overlayOpen = () => !dom.reference.hidden || !dom.viewPanel.hidden;
+const overlayOpen = () => OVERLAYS.some((s) => !s.hidden);
 
 function openReference() {
   if (!dom.referenceViews.children.length) buildReference();

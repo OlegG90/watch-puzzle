@@ -2,7 +2,7 @@
 
 A phone game: assemble a gold pocket watch part by part, then wind it, and it shows the real time.
 
-**Play it:** <https://olegg90.github.io/watch-puzzle/>. On a phone, you can install it from the browser menu, and it then plays offline.
+**Play it:** <https://olegg90.github.io/watch-puzzle/>. On a phone, you can install it from the browser menu, and it then plays offline. This site shows the latest release, not the latest code on `main`.
 
 See the [releases](https://github.com/OlegG90/watch-puzzle/releases) and the [changelog](CHANGELOG.md) for what has changed.
 
@@ -37,8 +37,8 @@ npm test
 ## Releasing
 
 1. On a branch, set the new version in `src/version.js`, `package.json` and `sw.js`, and describe it in `CHANGELOG.md`. A test checks that they agree.
-2. Merge the pull request into `main`. GitHub Pages publishes the game.
-3. Tag the merge and create the release from `main`, for example `gh release create v0.1.3 --target main`.
+2. Merge the pull request into `main`. This does not change the site.
+3. Create the release from `main`, for example `gh release create v0.1.3 --target main`. Publishing it starts the `Deploy release` workflow, which checks that the tag matches the version, runs the tests and publishes the game to GitHub Pages.
 
 Installed copies update themselves: the new version downloads on the next launch and shows on the launch after that.
 

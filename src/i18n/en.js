@@ -30,7 +30,7 @@ export default {
     close: 'Close',
     version: 'Version {version}',
     view: 'View',
-    viewLabel: 'Reset the view',
+    resetView: 'Reset the view',
     crown: 'Winding crown',
 
     resume: 'Continue',

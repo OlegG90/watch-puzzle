@@ -43,7 +43,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      // Only this game's old caches: other projects can share this github.io origin.
+      .then((keys) => keys.filter((k) => k !== VERSION && /^(watch-puzzle|godynnykar)-/.test(k)))
+      .then((old) => Promise.all(old.map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

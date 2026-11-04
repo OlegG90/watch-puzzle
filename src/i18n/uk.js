@@ -30,7 +30,7 @@ export default {
     close: 'Закрити',
     version: 'Версія {version}',
     view: 'Вигляд',
-    viewLabel: 'Скинути вигляд',
+    resetView: 'Скинути вигляд',
     crown: 'Заводна головка',
 
     resume: 'Продовжити',
