@@ -1,24 +1,26 @@
 // The rules of the game, free of any rendering, so they can be tested directly.
 
+import { OIL_POINTS, OIL_POINT_BY_ID } from './oil.js';
 import { PARTS, PART_BY_ID } from './parts.js';
 
 export const MAX_STARS = 3;
 
-export const TOOLS = { TWEEZERS: 'tweezers', SCREWDRIVER: 'screwdriver' };
+export const TOOLS = { TWEEZERS: 'tweezers', SCREWDRIVER: 'screwdriver', OILER: 'oiler' };
 
 export class Game {
-  /** @param {'apprentice'|'master'} level */
+  /** @param {'apprentice'|'master'|'expert'} level */
   constructor(level, saved = null) {
     this.level = level;
     this.installed = new Set(saved?.installed ?? []);
     this.tightened = new Set(saved?.tightened ?? []);
+    this.oiled = new Set(saved?.oiled ?? []);
     this.mistakes = saved?.mistakes ?? 0;
     this.hints = saved?.hints ?? 0;
     this.elapsedMs = saved?.elapsedMs ?? 0;
     this.wound = saved?.wound ?? false;
     this.seed = saved?.seed ?? Math.floor(Math.random() * 2 ** 31);
     this.tool = TOOLS.TWEEZERS;
-    // Only the master fits the small parts by hand.
+    // Only Apprentice leaves the small parts to fit themselves.
     this.playable = PARTS.filter((p) => this.isPlayable(p));
   }
 
@@ -27,6 +29,7 @@ export class Game {
       level: this.level,
       installed: [...this.installed],
       tightened: [...this.tightened],
+      oiled: [...this.oiled],
       mistakes: this.mistakes,
       hints: this.hints,
       elapsedMs: this.elapsedMs,
@@ -40,20 +43,25 @@ export class Game {
   }
 
   isPlayable(part) {
-    return this.level === 'master' || part.basic;
+    return this.level !== 'apprentice' || part.basic;
   }
 
   /** In Apprentice, every screw fits and tightens itself. */
   get usesScrewdriver() {
-    return this.level === 'master';
+    return this.level !== 'apprentice';
   }
 
+  get usesOil() {
+    return this.level === 'expert';
+  }
+
+  /** Every step the player takes: fitting parts and, in Expert, oiling points. */
   get total() {
-    return this.playable.length;
+    return this.playable.length + (this.usesOil ? OIL_POINTS.length : 0);
   }
 
   get placed() {
-    return this.playable.filter((p) => this.installed.has(p.id)).length;
+    return this.playable.filter((p) => this.installed.has(p.id)).length + this.oiled.size;
   }
 
   get assembled() {
@@ -69,8 +77,8 @@ export class Game {
       stacks.get(p.kind).count += 1;
     }
     const list = [...stacks.values()];
-    // The catalogue is in fitting order, so the master's tray must not give it away.
-    if (this.level === 'master') {
+    // The catalogue is in fitting order, so a full tray must not give it away.
+    if (this.level !== 'apprentice') {
       list.sort((a, b) => scatter(a.kind, this.seed) - scatter(b.kind, this.seed));
     }
     return list;
@@ -93,7 +101,7 @@ export class Game {
 
   /**
    * Fit the part in this slot.
-   * @returns {{ok: true, auto: object[]} | {ok: false, reason: 'blocked'|'loose', missing?: object[], loose?: object[]}}
+   * @returns {{ok: true, auto: object[]} | {ok: false, reason: 'blocked'|'loose'|'unoiled', missing?: object[], loose?: object[], unoiled?: object[]}}
    */
   place(slotId) {
     const part = PART_BY_ID[slotId];
@@ -109,8 +117,38 @@ export class Game {
         return { ok: false, reason: 'loose', loose };
       }
     }
+    const unoiled = this.unoiledUnder(part);
+    if (unoiled.length) {
+      this.mistakes += 1;
+      return { ok: false, reason: 'unoiled', unoiled };
+    }
     this.installed.add(part.id);
     return { ok: true, auto: this.#fitSmallParts() };
+  }
+
+  /** Oil points this part would cover that have not been oiled yet. */
+  unoiledUnder(part) {
+    if (!this.usesOil) return [];
+    return OIL_POINTS.filter((p) => p.before === part.id && !this.oiled.has(p.id));
+  }
+
+  /** Points that can be oiled right now: their part is in and nothing covers them. */
+  openOilPoints() {
+    if (!this.usesOil) return [];
+    return OIL_POINTS.filter((p) => this.installed.has(p.after) && !this.oiled.has(p.id));
+  }
+
+  /**
+   * Puts this kind of oil on the point.
+   * @returns {{ok: boolean}} a wrong oil is refused and counts as a mistake
+   */
+  applyOil(pointId, oil) {
+    if (OIL_POINT_BY_ID[pointId].oil !== oil) {
+      this.mistakes += 1;
+      return { ok: false };
+    }
+    this.oiled.add(pointId);
+    return { ok: true };
   }
 
   /** Fitted parts the player can actually see, so a tap never reaches through a cover. */
@@ -143,6 +181,8 @@ export class Game {
       const slot = this.openSlots(selectedKind).find((p) => this.canFit(p));
       if (slot) return { type: 'place', part: slot };
     }
+    const [point] = this.openOilPoints();
+    if (point) return { type: 'oil', point };
     const loose = this.looseScrews();
     const blocker = this.playable.find((p) => !this.installed.has(p.id) && p.tight);
     const next = this.playable.find((p) => !this.installed.has(p.id) && this.canFit(p));
@@ -164,7 +204,7 @@ export class Game {
   }
 
   canFit(part) {
-    if (this.missingFor(part).length) return false;
+    if (this.missingFor(part).length || this.unoiledUnder(part).length) return false;
     return !part.tight || this.#looseUnder(part).length === 0;
   }
 
@@ -176,7 +216,7 @@ export class Game {
   /** In Apprentice, anything not played by hand drops in once it is able to. */
   #fitSmallParts() {
     const fitted = [];
-    if (this.level === 'master') return fitted;
+    if (this.level !== 'apprentice') return fitted;
     let changed = true;
     while (changed) {
       changed = false;

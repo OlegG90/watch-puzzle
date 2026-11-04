@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GEARS, MESHES } from '../src/game/layout.js';
-import { PARTS, PART_BY_ID, REFERENCE_VIEWS } from '../src/game/parts.js';
+import { OILS, OIL_POINTS, OIL_POINT_BY_ID } from '../src/game/oil.js';
+import { LEVELS, PARTS, PART_BY_ID, REFERENCE_VIEWS } from '../src/game/parts.js';
 import { Game, grade } from '../src/game/state.js';
 import { CENTRE_RATIOS, dialSeconds, meshPhase, trainAngles } from '../src/game/train.js';
 
@@ -13,10 +14,14 @@ function playToEnd(game, random) {
   for (let guard = 0; guard < 1000 && !game.assembled; guard += 1) {
     const stacks = game.trayStacks();
     const loose = game.looseScrews();
+    const open = game.openOilPoints();
     const ready = stacks
       .flatMap((s) => game.openSlots(s.kind))
-      .filter((p) => !game.missingFor(p).length && !(p.tight && loose.length));
-    if (loose.length && (random() < 0.5 || !ready.length)) {
+      .filter((p) => game.canFit(p));
+    if (open.length && (random() < 0.5 || !ready.length)) {
+      const point = open[Math.floor(random() * open.length)];
+      assert.equal(game.applyOil(point.id, point.oil).ok, true);
+    } else if (loose.length && (random() < 0.5 || !ready.length)) {
       game.tighten(loose[0].id);
     } else {
       assert.ok(ready.length, `dead end with ${game.placed}/${game.total} placed`);
@@ -53,7 +58,7 @@ test('every part sits inside the case, except the crown', () => {
   }
 });
 
-for (const level of ['apprentice', 'master']) {
+for (const level of LEVELS) {
   test(`${level}: any legal order reaches the end with no dead ends`, () => {
     for (let seed = 1; seed <= 200; seed += 1) playToEnd(new Game(level), seeded(seed));
   });
@@ -64,6 +69,7 @@ for (const level of ['apprentice', 'master']) {
       const s = game.suggest();
       assert.ok(s, 'no suggestion before the end');
       if (s.type === 'tighten') assert.equal(game.tighten(s.part.id), true);
+      else if (s.type === 'oil') assert.equal(game.applyOil(s.point.id, s.point.oil).ok, true);
       else assert.equal(game.place(s.part.id).ok, true);
       if (!game.usesScrewdriver) assert.equal(game.looseScrews().length, 0, `loose screws after ${s.part.id}`);
     }
@@ -82,9 +88,96 @@ test('apprentice plays fewer parts than master and fits the rest itself', () => 
   assert.equal(m.place('mainplate').auto.length, 0);
 });
 
-test('only master uses the screwdriver', () => {
+test('only apprentice goes without the screwdriver', () => {
   assert.equal(new Game('apprentice').usesScrewdriver, false);
   assert.equal(new Game('master').usesScrewdriver, true);
+  assert.equal(new Game('expert').usesScrewdriver, true);
+});
+
+test('about twenty oil points, each with a known oil, on real parts in fitting order', () => {
+  assert.ok(OIL_POINTS.length >= 18 && OIL_POINTS.length <= 22, `${OIL_POINTS.length} points`);
+  assert.equal(new Set(OIL_POINTS.map((p) => p.id)).size, OIL_POINTS.length);
+  for (const oil of OILS) assert.ok(OIL_POINTS.some((p) => p.oil === oil), `${oil} is never used`);
+  const order = PARTS.map((p) => p.id);
+  for (const p of OIL_POINTS) {
+    assert.ok(OILS.includes(p.oil), p.id);
+    assert.ok(order.indexOf(p.after) >= 0, `${p.id}: unknown part ${p.after}`);
+    assert.ok(order.indexOf(p.before) > order.indexOf(p.after), `${p.id} is covered before it appears`);
+  }
+});
+
+test('oil only matters in Expert, which plays every part', () => {
+  const master = new Game('master');
+  const expert = new Game('expert');
+  assert.equal(expert.total, master.total + OIL_POINTS.length);
+  assert.deepEqual(master.openOilPoints(), []);
+  master.place('mainplate');
+  master.place('drum');
+  master.place('mainspring');
+  master.place('arbor');
+  assert.deepEqual(master.openOilPoints(), []);
+  assert.equal(master.place('barrelCover').ok, true);
+});
+
+function expertWithArbor() {
+  const game = new Game('expert');
+  for (const id of ['mainplate', 'drum', 'mainspring', 'arbor']) assert.equal(game.place(id).ok, true);
+  return game;
+}
+
+test('an oil point appears once its part is fitted, and then leaves when oiled', () => {
+  const game = new Game('expert');
+  assert.deepEqual(game.openOilPoints(), []);
+  for (const id of ['mainplate', 'drum', 'mainspring']) game.place(id);
+  assert.deepEqual(game.openOilPoints(), []);
+  game.place('arbor');
+  assert.deepEqual(game.openOilPoints().map((p) => p.id), ['barrelArborLower']);
+  game.applyOil('barrelArborLower', 'heavy');
+  assert.deepEqual(game.openOilPoints(), []);
+  assert.equal(game.placed, 5);
+});
+
+test('the wrong oil is refused and counts as a mistake', () => {
+  const game = expertWithArbor();
+  assert.equal(game.applyOil('barrelArborLower', 'light').ok, false);
+  assert.equal(game.mistakes, 1);
+  assert.equal(game.oiled.size, 0);
+});
+
+test('a part that would cover an unoiled point is refused and names it', () => {
+  const game = expertWithArbor();
+  const result = game.place('barrelCover');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unoiled');
+  assert.deepEqual(result.unoiled.map((p) => p.id), ['barrelArborLower']);
+  assert.equal(game.mistakes, 1);
+  assert.equal(game.canFit(PART_BY_ID.barrelCover), false);
+  game.applyOil('barrelArborLower', 'heavy');
+  assert.equal(game.canFit(PART_BY_ID.barrelCover), true);
+  assert.equal(game.place('barrelCover').ok, true);
+});
+
+test('the dial waits for a train-side wheel whose lower pivot it would cover', () => {
+  const game = new Game('expert');
+  assert.ok(game.unoiledUnder(PART_BY_ID.dial).includes(OIL_POINT_BY_ID.escapeLower));
+});
+
+test('the hint covers oiling', () => {
+  const game = expertWithArbor();
+  const suggestion = game.suggest();
+  assert.equal(suggestion.type, 'oil');
+  assert.equal(suggestion.point.id, 'barrelArborLower');
+});
+
+test('oiled points survive a save, and older saves load with none', () => {
+  const game = expertWithArbor();
+  game.applyOil('barrelArborLower', 'heavy');
+  const restored = new Game('expert', JSON.parse(JSON.stringify(game)));
+  assert.deepEqual([...restored.oiled], ['barrelArborLower']);
+  assert.equal(restored.placed, game.placed);
+  const old = JSON.parse(JSON.stringify(new Game('master')));
+  delete old.oiled;
+  assert.deepEqual([...new Game('master', old).oiled], []);
 });
 
 test('fitting out of order is refused, names the blocker, and counts a mistake', () => {

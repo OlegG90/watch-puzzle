@@ -17,6 +17,7 @@ export default {
     assemblyTime: 'Assembly time',
     parts: 'Parts',
     flip: 'Flip',
+    flipTool: 'Flip',
     flipLabel: 'Flip the movement',
     screwdriver: 'Screwdriver',
     hint: 'Hint',
@@ -34,7 +35,7 @@ export default {
     crown: 'Winding crown',
 
     resume: 'Continue',
-    resumeNote: '{level}: {placed} of {total} parts',
+    resumeNote: '{level}: {placed} of {total} done',
     newGame: '{level}: new assembly',
     bestScore: ' · best {stars} {time}',
     confirmRestart: 'Start again? The current assembly will be lost.',
@@ -56,6 +57,19 @@ export default {
     hintTooEarly: 'Too early for this part. First: {name}.',
     hintPlace: '{name} goes here.',
 
+    oiler: 'Oiler',
+    oils: 'Oils',
+    pickOilTitle: 'Pick an oil',
+    pickOilText: 'Choose a kind of oil, then tap a marked point on the movement. Each point takes only one kind.',
+    pickOilFirst: 'Choose a kind of oil first.',
+    noOilPoints: 'There is nothing to oil right now. Fit more parts.',
+    tapOilPoint: 'Tap one of the marked points.',
+    oilOnOtherSide: 'The points left to oil are on the other side. Flip the movement.',
+    tapCloser: 'These points are close together. Now tap the one you mean.',
+    wrongOil: '{name}: wrong oil. {why}',
+    oilFirst: 'This part would cover a point that needs oil. First oil: {names}.',
+    hintOil: '{name}: use {oil}.',
+
     windPrompt: 'Wind the watch: swipe your finger along the crown',
     openBack: 'Open the back',
     closeBack: 'Close the back',
@@ -68,6 +82,52 @@ export default {
   levels: {
     apprentice: { name: 'Apprentice', note: 'Key parts only, the small ones fit themselves' },
     master: { name: 'Master', note: 'Every part, down to the last screw' },
+    expert: { name: 'Expert', note: 'Every part, and every pivot oiled with the right oil' },
+  },
+
+  oils: {
+    light: {
+      name: 'Light oil',
+      desc: 'The thinnest oil, for fast pivots with little load: the balance, the escape wheel and the pallet fork.',
+      why: 'Fast pivots with little load take light oil.',
+    },
+    medium: {
+      name: 'Medium oil',
+      desc: 'For slower pivots: the centre, third and seconds wheels, and the wheels under the dial.',
+      why: 'Slower wheels take medium oil.',
+    },
+    heavy: {
+      name: 'Heavy oil',
+      desc: 'The thickest oil, for the slowest part under the greatest load: the barrel arbor.',
+      why: 'The barrel arbor carries the mainspring\'s force and takes heavy oil.',
+    },
+    escapement: {
+      name: 'Escapement oil',
+      desc: 'A special oil that stays where it is put, for the stones of the pallet fork.',
+      why: 'Only escapement oil stays on the pallet stones.',
+    },
+  },
+
+  oilPoints: {
+    barrelArborLower: 'Barrel arbor, lower end',
+    barrelArborUpper: 'Barrel arbor, upper end',
+    centreUpper: 'Centre wheel, upper pivot',
+    thirdUpper: 'Third wheel, upper pivot',
+    fourthUpper: 'Seconds wheel, upper pivot',
+    escapeUpper: 'Escape wheel, upper pivot',
+    palletStones: 'Pallet fork stones',
+    palletUpper: 'Pallet fork, upper pivot',
+    balanceUpper: 'Balance, upper pivot',
+    centreLower: 'Centre wheel, lower pivot',
+    thirdLower: 'Third wheel, lower pivot',
+    fourthLower: 'Seconds wheel, lower pivot',
+    escapeLower: 'Escape wheel, lower pivot',
+    palletLower: 'Pallet fork, lower pivot',
+    balanceLower: 'Balance, lower pivot',
+    cannon: 'Cannon pinion',
+    minute: 'Minute wheel',
+    hour: 'Hour wheel',
+    setting: 'Setting wheel',
   },
 
   grades: {

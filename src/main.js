@@ -1,8 +1,10 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
+import { OILS } from './game/oil.js';
 import { LEVELS, PARTS, REFERENCE_VIEWS, onFace } from './game/parts.js';
 import {
-  LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, partDesc, partName, setLanguage, t,
+  LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, oilDesc, oilName, oilPointName, oilWhy,
+  partDesc, partName, setLanguage, t,
 } from './i18n/index.js';
 import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
@@ -34,6 +36,7 @@ const dom = {
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
   reference: $('reference'), referenceViews: $('reference-views'), viewPanel: $('view-panel'),
+  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -69,6 +72,8 @@ let toastHandle = null;
 let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
 let infoPart = null; // what the info panel describes; null shows the instructions
+let selectedOil = null;
+let oilInfoShown = false; // the info panel is about oil, which infoPart cannot say
 
 // ---- Screens
 
@@ -85,7 +90,9 @@ function setPlaying(playing) {
 
 /** Which of the bench's three panels is showing. */
 function showPanel(panel) {
-  dom.tray.hidden = panel !== 'tray';
+  const oiling = panel === 'tray' && game?.tool === TOOLS.OILER;
+  dom.tray.hidden = panel !== 'tray' || oiling;
+  dom.oils.hidden = !oiling;
   dom.info.hidden = panel !== 'tray';
   dom.wind.hidden = panel !== 'wind';
   dom.admire.hidden = panel !== 'admire';
@@ -152,7 +159,10 @@ function startGame(level, saved = null) {
   if (!saved && existing?.installed?.length && !existing.wound && !confirm(t('confirmRestart'))) return;
   game = new Game(level, saved);
   dom.btnTool.hidden = !game.usesScrewdriver;
+  dom.btnOiler.hidden = !game.usesOil;
   selectedKind = null;
+  selectedOil = null;
+  setTool(TOOLS.TWEEZERS);
   windClicks = 0;
   scene.load(game);
   show(null);
@@ -219,7 +229,13 @@ function refresh() {
   dom.btnTool.classList.toggle('nudge', loose > 0 && game.tool !== TOOLS.SCREWDRIVER);
   if (loose === 0 && game.tool === TOOLS.SCREWDRIVER) setTool(TOOLS.TWEEZERS);
 
+  const open = game.openOilPoints().length;
+  dom.oilBadge.hidden = open === 0;
+  dom.oilBadge.textContent = open;
+  scene.syncOil(game);
+
   renderTray();
+  renderOils();
 
   if (game.assembled) enterWinding();
   else showPanel('tray');
@@ -332,13 +348,90 @@ function toggleSelect(kind) {
 
 function setInfo(part) {
   infoPart = part;
+  oilInfoShown = false;
   dom.infoTitle.textContent = part ? partName(part) : t('pickTitle');
   dom.infoText.textContent = part ? partDesc(part) : t('pickText');
 }
 
+function setOilInfo() {
+  infoPart = null;
+  oilInfoShown = true;
+  dom.infoTitle.textContent = selectedOil ? oilName(selectedOil) : t('pickOilTitle');
+  dom.infoText.textContent = selectedOil ? oilDesc(selectedOil) : t('pickOilText');
+}
+
 function setTool(tool) {
+  const wasOiling = game.tool === TOOLS.OILER;
   game.tool = tool;
   dom.btnTool.classList.toggle('active', tool === TOOLS.SCREWDRIVER);
+  dom.btnOiler.classList.toggle('active', tool === TOOLS.OILER);
+  if (tool === TOOLS.OILER) setOilInfo();
+  else if (wasOiling) setInfo(null);
+  if (tool === TOOLS.OILER || wasOiling) showPanel('tray');
+}
+
+// ---- The oiler
+
+function buildOils() {
+  for (const oil of OILS) {
+    const button = document.createElement('button');
+    button.className = 'oil-btn';
+    button.dataset.oil = oil;
+    button.addEventListener('click', () => {
+      sound.unlock();
+      selectedOil = oil;
+      renderOils();
+      setOilInfo();
+    });
+    dom.oils.append(button);
+  }
+}
+
+function renderOils() {
+  for (const button of dom.oils.children) {
+    button.textContent = oilName(button.dataset.oil);
+    button.setAttribute('aria-pressed', button.dataset.oil === selectedOil);
+  }
+}
+
+function onOilerButton() {
+  sound.unlock();
+  setTool(game.tool === TOOLS.OILER ? TOOLS.TWEEZERS : TOOLS.OILER);
+  selectedKind = null;
+  renderTray();
+}
+
+function oilAt(x, y) {
+  const points = game.openOilPoints();
+  if (!points.length) {
+    toast(t('noOilPoints'));
+    return;
+  }
+  if (!selectedOil) {
+    toast(t('pickOilFirst'));
+    return;
+  }
+  const { point, unclear } = scene.oilPointAt(points, x, y);
+  if (!point) {
+    const here = points.some((p) => onFace(p, scene.facing()));
+    toast(t(here ? 'tapOilPoint' : 'oilOnOtherSide'));
+    return;
+  }
+  if (unclear) {
+    scene.focusOn(point);
+    toast(t('tapCloser'));
+    return;
+  }
+  if (game.applyOil(point.id, selectedOil).ok) {
+    sound.place();
+    buzz(12);
+    refresh();
+    return;
+  }
+  sound.wrong();
+  buzz(30);
+  toast(t('wrongOil', { name: oilPointName(point), why: oilWhy(point.oil) }), true);
+  save();
 }
 
 // ---- Toasts
@@ -446,6 +539,8 @@ function onRefused(result) {
   if (result.reason === 'loose') {
     toast(t('tightenFirst'), true);
     dom.btnTool.classList.add('nudge');
+  } else if (result.reason === 'unoiled') {
+    toast(t('oilFirst', { names: result.unoiled.slice(0, 2).map(oilPointName).join(', ') }), true);
   } else {
     const names = result.missing.slice(0, 2).map(partName).join(', ');
     toast(t('fitFirst', { names }), true);
@@ -458,6 +553,10 @@ function onRefused(result) {
 function onStageTap(x, y) {
   sound.unlock();
   if (!game || game.wound || game.assembled) return;
+  if (game.tool === TOOLS.OILER) {
+    oilAt(x, y);
+    return;
+  }
   if (game.tool === TOOLS.SCREWDRIVER) {
     const screw = scene.nearest(game.looseScrews(), x, y);
     if (!screw) {
@@ -505,7 +604,19 @@ function onHint() {
   const suggestion = game.suggest(selectedKind);
   if (!suggestion) return;
   game.hints += 1;
-  const { type, part } = suggestion;
+  const { type, part, point } = suggestion;
+  if (type === 'oil') {
+    if (!onFace(point, scene.facing())) scene.turnTo(point.side);
+    selectedOil = point.oil;
+    selectedKind = null;
+    setTool(TOOLS.OILER);
+    renderTray();
+    setOilInfo();
+    toast(t('hintOil', { name: oilPointName(point), oil: oilName(point.oil) }));
+    refresh();
+    scene.pulseOilPoint(point);
+    return;
+  }
   if (!onFace(part, scene.facing())) scene.turnTo(part.side);
   if (type === 'tighten') {
     setTool(TOOLS.SCREWDRIVER);
@@ -689,9 +800,11 @@ function changeLanguage(code) {
     fillMenu();
     return;
   }
-  setInfo(infoPart);
+  if (oilInfoShown) setOilInfo();
+  else setInfo(infoPart);
   renderProgress();
   renderTray();
+  renderOils();
   renderResult();
   renderBackButton();
   syncBenchHeight();
@@ -726,6 +839,8 @@ function wire() {
     scene.flip();
   });
   dom.btnTool.addEventListener('click', onToolButton);
+  dom.btnOiler.addEventListener('click', onOilerButton);
+  buildOils();
   $('btn-hint').addEventListener('click', onHint);
   $('btn-view').addEventListener('click', () => openOverlay(dom.viewPanel));
   $('btn-view-reset').addEventListener('click', () => {
