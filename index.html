@@ -40,11 +40,17 @@
     <button class="tool-btn" id="btn-view" aria-label="View" data-i18n-label="view"><span class="glyph">⌖</span><small data-i18n="view">View</small></button>
   </aside>
 
+  <canvas id="loupe" aria-hidden="true" hidden></canvas>
+
   <div id="toast" role="status" hidden></div>
 
   <section id="bench" hidden>
     <div id="info"><strong id="info-title"></strong><span id="info-text"></span></div>
-    <div id="tray" role="listbox" aria-label="Parts" data-i18n-label="parts"></div>
+    <div id="tray-box">
+      <div id="tray" role="listbox" aria-label="Parts" data-i18n-label="parts"></div>
+      <span class="tray-arrow before" aria-hidden="true"></span>
+      <span class="tray-arrow after" aria-hidden="true"></span>
+    </div>
     <div id="oils" role="group" aria-label="Oils" data-i18n-label="oils" hidden></div>
     <div id="wind" hidden>
       <div id="wind-text" data-i18n="windPrompt">Wind the watch: swipe your finger along the crown</div>

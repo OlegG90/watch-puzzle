@@ -1,6 +1,6 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
-import { OILS } from './game/oil.js';
+import { OILS, OIL_COLORS } from './game/oil.js';
 import { LEVELS, PARTS, REFERENCE_VIEWS, onFace } from './game/parts.js';
 import {
   LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, oilDesc, oilName, oilPointName, oilWhy,
@@ -25,6 +25,7 @@ const BACK_VIEW_PX = 480;
 const REFERENCE_PX = 720;
 const REFERENCE_TILT = 0.12;
 const FINGER_CLEARANCE = 64; // the held part floats above the finger, so it stays visible
+const LOUPE_GAP = 48; // px between the fingertip and the loupe
 
 const $ = (id) => document.getElementById(id);
 const dom = {
@@ -37,7 +38,7 @@ const dom = {
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
   reference: $('reference'), referenceViews: $('reference-views'), viewPanel: $('view-panel'),
-  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'),
+  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'), loupe: $('loupe'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -381,6 +382,10 @@ function buildOils() {
     const button = document.createElement('button');
     button.className = 'oil-btn';
     button.dataset.oil = oil;
+    const cup = document.createElement('span');
+    cup.className = 'oil-cup';
+    cup.style.setProperty('--oil', OIL_COLORS[oil]);
+    button.append(cup, document.createElement('span'));
     button.addEventListener('click', () => {
       sound.unlock();
       selectedOil = oil;
@@ -393,7 +398,7 @@ function buildOils() {
 
 function renderOils() {
   for (const button of dom.oils.children) {
-    button.textContent = oilName(button.dataset.oil);
+    button.lastChild.textContent = oilName(button.dataset.oil);
     button.setAttribute('aria-pressed', button.dataset.oil === selectedOil);
   }
 }
@@ -409,7 +414,7 @@ function onOilerButton() {
   renderTray();
 }
 
-function oilAt(x, y) {
+function oilAt(x, y, { aimed = false } = {}) {
   const points = game.openOilPoints();
   if (!selectedOil) {
     toast(t('pickOilFirst'));
@@ -421,7 +426,8 @@ function oilAt(x, y) {
     toast(t(here ? 'tapOilPoint' : 'oilOnOtherSide'));
     return;
   }
-  if (unclear) {
+  // Under the loupe the player has seen which point is marked, so there is nothing to guess.
+  if (unclear && !aimed) {
     scene.focusOn(point);
     toast(t('tapCloser'));
     return;
@@ -436,6 +442,48 @@ function oilAt(x, y) {
   buzz(30);
   toast(t('wrongOil', { name: oilPointName(point), why: oilWhy(point.oil) }), true);
   save();
+}
+
+// ---- The loupe: a finger held down shows what is under it, and letting go oils that point
+
+/** Keeps the loupe clear of the finger: above it, or below when there is no room. */
+function placeLoupe(x, y) {
+  const box = dom.canvas.getBoundingClientRect();
+  const size = dom.loupe.offsetWidth;
+  const left = box.left + x - size / 2;
+  const above = box.top + y - size - LOUPE_GAP;
+  dom.loupe.style.left = `${Math.min(innerWidth - size, Math.max(0, left))}px`;
+  dom.loupe.style.top = `${above >= 0 ? above : box.top + y + LOUPE_GAP}px`;
+}
+
+function showAimed(point) {
+  setOilInfo();
+  if (point) dom.infoTitle.textContent = oilPointName(point);
+}
+
+function onHoldStart(x, y) {
+  if (game?.tool !== TOOLS.OILER || game.assembled) return false;
+  sound.unlock();
+  buzz(8);
+  hideToast();
+  dom.loupe.hidden = false;
+  placeLoupe(x, y);
+  showAimed(scene.startAim(dom.loupe, x, y));
+  return true;
+}
+
+function onAim(x, y) {
+  if (!scene.loupe) return; // the Back button left the game mid-gesture
+  placeLoupe(x, y);
+  showAimed(scene.aim(x, y));
+}
+
+function onAimEnd(x, y, cancelled) {
+  dom.loupe.hidden = true;
+  scene.endAim();
+  if (!game) return;
+  setOilInfo();
+  if (!cancelled) oilAt(x, y, { aimed: true });
 }
 
 // ---- Toasts
@@ -836,6 +884,9 @@ function wire() {
     onOrbit: (dx, dy) => scene.orbit(dx, dy),
     onPinch: (factor) => scene.zoomBy(factor),
     onPan: (dx, dy) => scene.panBy(dx, dy),
+    onHoldStart,
+    onAim,
+    onAimEnd,
   });
   attachWinding();
 

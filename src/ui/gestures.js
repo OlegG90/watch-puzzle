@@ -1,17 +1,21 @@
 // Touch handling for the watch: one finger turns it, two pinch and pan, and a
-// still touch is a tap, however long it lasts. A tap and a turn can never be confused, however
-// shaky the hand, because only movement past TAP_SLOP counts as turning.
+// still touch is a tap. A tap and a turn can never be confused, however shaky the
+// hand, because only movement past TAP_SLOP counts as turning. A touch held still
+// can start aiming, if onHoldStart accepts it; otherwise it is still a tap.
 
 const TAP_SLOP = 10; // px
+const HOLD_MS = 280;
 
 /**
  * @param {HTMLElement} el
- * @param {{onTap(x,y), onOrbit(dx,dy), onPinch(factor), onPan(dx,dy)}} handlers
+ * @param {{onTap(x,y), onOrbit(dx,dy), onPinch(factor), onPan(dx,dy),
+ *   onHoldStart(x,y): boolean, onAim(x,y), onAimEnd(x,y,cancelled)}} handlers
  *   coordinates are relative to the element
  */
 export function attachStageGestures(el, handlers) {
   const pointers = new Map();
-  let gesture = null; // 'maybe-tap' | 'orbit' | 'pinch'
+  let gesture = null; // 'maybe-tap' | 'orbit' | 'pinch' | 'aim'
+  let holdTimer = null;
   let startX = 0;
   let startY = 0;
   let lastSpread = 0;
@@ -34,10 +38,15 @@ export function attachStageGestures(el, handlers) {
   el.addEventListener('pointerdown', (e) => {
     el.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, local(e));
+    clearTimeout(holdTimer);
     if (pointers.size === 1) {
       gesture = 'maybe-tap';
       ({ x: startX, y: startY } = local(e));
+      holdTimer = setTimeout(() => {
+        if (gesture === 'maybe-tap' && handlers.onHoldStart(startX, startY)) gesture = 'aim';
+      }, HOLD_MS);
     } else {
+      if (gesture === 'aim') handlers.onAimEnd(startX, startY, true);
       gesture = 'pinch';
       lastSpread = spread();
       lastMid = midpoint();
@@ -50,9 +59,12 @@ export function attachStageGestures(el, handlers) {
     const now = local(e);
     pointers.set(e.pointerId, now);
     if (gesture === 'maybe-tap' && Math.hypot(now.x - startX, now.y - startY) > TAP_SLOP) {
+      clearTimeout(holdTimer);
       gesture = 'orbit';
     }
-    if (gesture === 'orbit') {
+    if (gesture === 'aim') {
+      handlers.onAim(now.x, now.y);
+    } else if (gesture === 'orbit') {
       handlers.onOrbit(now.x - previous.x, now.y - previous.y);
     } else if (gesture === 'pinch') {
       const s = spread();
@@ -68,6 +80,8 @@ export function attachStageGestures(el, handlers) {
     if (!pointers.has(e.pointerId)) return;
     const at = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
+    clearTimeout(holdTimer);
+    if (gesture === 'aim') handlers.onAimEnd(at.x, at.y, cancelled);
     if (gesture === 'maybe-tap' && !cancelled && pointers.size === 0) {
       handlers.onTap(at.x, at.y);
     }

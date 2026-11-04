@@ -11,6 +11,14 @@ import { POS } from './layout.js';
 
 export const OILS = ['light', 'medium', 'heavy', 'escapement'];
 
+/** Real oils all look much alike, so the game tells them apart by colour. */
+export const OIL_COLORS = {
+  light: '#e3f4ff',
+  medium: '#3fb950',
+  heavy: '#5a2d0c',
+  escapement: '#e5396e',
+};
+
 const O = [0, 0];
 
 const point = (id, oil, side, pos, hitZ, after, before) => ({

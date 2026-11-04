@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
-import { OIL_POINT_BY_ID } from '../game/oil.js';
+import { OIL_COLORS, OIL_POINT_BY_ID } from '../game/oil.js';
 import { PARTS, PART_BY_ID, onFace } from '../game/parts.js';
 import { BEATS_PER_SECOND, dialSeconds, trainAngles } from '../game/train.js';
 import { createMaterials } from './materials.js';
@@ -26,6 +26,7 @@ const BEAT_FRAME_MS = 1000 / BEATS_PER_SECOND;
 const SET_HANDS_MS = 1600;
 const HINT_MS = 2600;
 const MAX_ZOOM = 6;
+const LOUPE_ZOOM = 2.6;
 const OIL_CLEAR_PX = 16; // a tap this much nearer one point than the next clearly means it
 const OIL_FOCUS_ZOOM = 2.6; // close points stand a fingertip apart at this zoom
 const OIL_FOCUS_MS = 420;
@@ -78,7 +79,11 @@ export class WatchScene {
     this.oilDot = new THREE.SphereGeometry(1, 16, 12);
     // Markers draw over everything, since a point sits among the wheels; draw() hides the far side's.
     this.oilMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x00c2ff, depthTest: false, transparent: true });
-    this.oilDropMaterial = new THREE.MeshStandardMaterial({ color: 0xd98f1e, roughness: 0.12, metalness: 0.1 });
+    this.oilAimMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true });
+    this.oilDropMaterials = Object.fromEntries(Object.entries(OIL_COLORS).map(([oil, color]) => (
+      [oil, new THREE.MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.1 })]
+    )));
+    this.loupe = null; // {canvas, x, y} while a finger is aiming
     this.tweens = [];
     this.yaw = REST_YAW;
     this.pitch = REST_PITCH;
@@ -134,7 +139,57 @@ export class WatchScene {
     this.syncPose();
     const side = this.facing();
     for (const marker of this.oilMarkers.values()) marker.visible = onFace(marker.userData.point, side);
+    if (this.loupe) this.drawLoupe();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Renders the area around the finger enlarged, sharp rather than stretched, and copies it out. */
+  drawLoupe() {
+    const { canvas, x, y } = this.loupe;
+    const { width, height } = this;
+    const across = width / LOUPE_ZOOM;
+    const down = height / LOUPE_ZOOM;
+    this.camera.setViewOffset(width, height, x - across / 2, y - down / 2, across, down);
+    this.renderer.render(this.scene, this.camera);
+    this.camera.clearViewOffset();
+    const size = canvas.width;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, size, size);
+    const left = (this.canvas.width - size) / 2;
+    const top = (this.canvas.height - size) / 2;
+    context.drawImage(this.canvas, left, top, size, size, 0, 0, size, size);
+  }
+
+  /** Shows the area around (x, y) in this canvas until endAim. */
+  startAim(canvas, x, y) {
+    const size = Math.round(canvas.clientWidth * this.renderer.getPixelRatio());
+    canvas.width = size;
+    canvas.height = size;
+    this.loupe = { canvas, x, y };
+    return this.aim(x, y);
+  }
+
+  /** Moves the aim, marking the oil point it would take. @returns the point, or null */
+  aim(x, y) {
+    Object.assign(this.loupe, { x, y });
+    const points = [...this.oilMarkers.values()].map((m) => m.userData.point);
+    const { point } = this.oilPointAt(points, x, y);
+    for (const marker of this.oilMarkers.values()) {
+      const aimed = marker.userData.point === point;
+      marker.material = aimed ? this.oilAimMaterial : this.oilMarkerMaterial;
+      marker.scale.setScalar(OIL_MARKER_R * (aimed ? 1.3 : 1));
+    }
+    this.invalidate();
+    return point;
+  }
+
+  endAim() {
+    this.loupe = null;
+    for (const marker of this.oilMarkers.values()) {
+      marker.material = this.oilMarkerMaterial;
+      marker.scale.setScalar(OIL_MARKER_R);
+    }
+    this.invalidate();
   }
 
   /** Applies the view to the matrices. Cheap: the watch's parts are not walked. */
@@ -216,7 +271,7 @@ export class WatchScene {
     }
     for (const id of game.oiled) {
       const point = OIL_POINT_BY_ID[id];
-      const drop = new THREE.Mesh(this.oilDot, this.oilDropMaterial);
+      const drop = new THREE.Mesh(this.oilDot, this.oilDropMaterials[point.oil]);
       const outwards = point.side === 'train' ? 1 : -1;
       drop.position.set(...point.pos, point.hitZ + outwards * OIL_DROP_R * 0.5);
       drop.scale.set(OIL_DROP_R, OIL_DROP_R, OIL_DROP_R * 0.6);

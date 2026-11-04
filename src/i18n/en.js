@@ -60,7 +60,7 @@ export default {
     oiler: 'Oiler',
     oils: 'Oils',
     pickOilTitle: 'Pick an oil',
-    pickOilText: 'Choose a kind of oil, then tap a marked point on the movement. Each point takes only one kind.',
+    pickOilText: 'Choose a kind of oil, then tap a marked point on the movement. Hold your finger down for a magnifier, and let go on the point.',
     pickOilFirst: 'Choose a kind of oil first.',
     noOilPoints: 'There is nothing to oil right now. Fit more parts.',
     tapOilPoint: 'Tap one of the marked points.',
