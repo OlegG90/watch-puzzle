@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "start:lan": "node scripts/serve.mjs --lan",
-    "test": "node --test test/",
+    "test": "node --test",
     "icons": "node scripts/make-icons.mjs"
   }
 }
