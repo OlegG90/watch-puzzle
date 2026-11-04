@@ -1,6 +1,9 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
 import { LEVELS, PARTS, onFace } from './game/parts.js';
+import {
+  LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, partDesc, partName, setLanguage, t,
+} from './i18n/index.js';
 import { Game, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
@@ -9,6 +12,7 @@ import { attachStageGestures } from './ui/gestures.js';
 const SAVE_KEY = 'godynnykar.save.v1';
 const RECORDS_KEY = 'godynnykar.records.v1';
 const SOUND_KEY = 'godynnykar.sound.v1';
+const LANGUAGE_KEY = 'godynnykar.language.v1';
 const WIND_CLICKS = 24;
 const WIND_PX_PER_CLICK = 16;
 const DRAG_START_PX = 8;
@@ -23,6 +27,7 @@ const dom = {
   timer: $('timer'), btnTool: $('btn-tool'), btnFlip: $('btn-flip'), looseBadge: $('loose-badge'),
   wind: $('wind'), windStrip: $('wind-strip'), windFill: document.querySelector('#wind-bar span'),
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
+  btnLang: $('btn-lang'), menuLang: $('menu-lang'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -54,6 +59,7 @@ let timerFrom = 0;
 let toastHandle = null;
 let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
+let infoPart = null; // what the info panel describes; null shows the instructions
 
 // ---- Screens
 
@@ -89,27 +95,30 @@ function renderMenu() {
   game = null;
   setPlaying(false);
   dom.tools.hidden = true;
+  fillMenu();
+  show(dom.menu);
+}
+
+function fillMenu() {
   dom.menuButtons.replaceChildren();
   const records = store.read(RECORDS_KEY) ?? {};
   const saved = store.read(SAVE_KEY);
-  if (saved?.level && LEVELS[saved.level]) {
+  if (LEVELS.includes(saved?.level)) {
     const g = new Game(saved.level, saved);
-    dom.menuButtons.append(
-      menuButton('Продовжити', `${LEVELS[saved.level].name}: ${g.placed} із ${g.total} деталей`, () => startGame(saved.level, saved)),
-    );
+    const note = t('resumeNote', { level: levelName(saved.level), placed: g.placed, total: g.total });
+    dom.menuButtons.append(menuButton(t('resume'), note, () => startGame(saved.level, saved)));
   }
-  for (const level of Object.values(LEVELS)) {
-    const best = records[level.id];
-    const bestText = best ? ` · найкраще ${'★'.repeat(best.stars)} ${formatTime(best.ms)}` : '';
+  for (const level of LEVELS) {
+    const best = records[level];
+    const bestText = best ? t('bestScore', { stars: '★'.repeat(best.stars), time: formatTime(best.ms) }) : '';
     const button = menuButton(
-      `${level.name}: нове збирання`,
-      `${level.note}${bestText}`,
-      () => startGame(level.id),
+      t('newGame', { level: levelName(level) }),
+      `${levelNote(level)}${bestText}`,
+      () => startGame(level),
     );
     if (saved) button.classList.add('ghost');
     dom.menuButtons.append(button);
   }
-  show(dom.menu);
 }
 
 function menuButton(title, subtitle, onClick) {
@@ -131,7 +140,7 @@ function menuButton(title, subtitle, onClick) {
 function startGame(level, saved = null) {
   // A new game replaces the save, so ask before throwing real progress away.
   const existing = store.read(SAVE_KEY);
-  if (!saved && existing?.installed?.length && !existing.wound && !confirm('Почати заново? Поточне збирання буде втрачено.')) return;
+  if (!saved && existing?.installed?.length && !existing.wound && !confirm(t('confirmRestart'))) return;
   game = new Game(level, saved);
   selectedKind = null;
   windClicks = 0;
@@ -184,9 +193,15 @@ function formatTime(ms) {
 
 // ---- The bench
 
+function renderProgress() {
+  dom.progressText.textContent = game.wound
+    ? levelName(game.level)
+    : t('progressText', { level: levelName(game.level), placed: game.placed, total: game.total });
+  dom.progressFill.style.width = game.wound ? '100%' : `${(game.placed / game.total) * 100}%`;
+}
+
 function refresh() {
-  dom.progressText.textContent = `${LEVELS[game.level].name} · ${game.placed} із ${game.total}`;
-  dom.progressFill.style.width = `${(game.placed / game.total) * 100}%`;
+  renderProgress();
 
   const loose = game.looseScrews().length;
   dom.looseBadge.hidden = loose === 0;
@@ -212,6 +227,7 @@ function renderTray() {
     const badge = card.querySelector('b');
     badge.hidden = stack.count < 2;
     badge.textContent = stack.count;
+    card.querySelector('.name').textContent = partName(stack.part);
     return card;
   });
   // Touching a card's neighbours would lose an active drag or the scroll position.
@@ -230,7 +246,6 @@ function makeCard(stack) {
   img.src = thumbs.get(stack.kind);
   const name = document.createElement('span');
   name.className = 'name';
-  name.textContent = stack.part.name;
   const badge = document.createElement('b');
   card.append(img, name, badge);
   attachCardGestures(card, stack.kind);
@@ -303,13 +318,9 @@ function toggleSelect(kind) {
 }
 
 function setInfo(part) {
-  if (part) {
-    dom.infoTitle.textContent = part.name;
-    dom.infoText.textContent = part.desc;
-  } else {
-    dom.infoTitle.textContent = 'Оберіть деталь';
-    dom.infoText.textContent = 'Торкніться деталі й місця на механізмі або потягніть її вгору. Палець обертає годинник, два пальці наближають.';
-  }
+  infoPart = part;
+  dom.infoTitle.textContent = part ? partName(part) : t('pickTitle');
+  dom.infoText.textContent = part ? partDesc(part) : t('pickText');
 }
 
 function setTool(tool) {
@@ -387,13 +398,13 @@ function attemptPlace(kind, x, y) {
   // Every slot is on the other face: the player's aim may be right, so no penalty.
   const side = scene.facing();
   if (!slots.some((s) => onFace(s, side))) {
-    toast('Ця деталь встановлюється з іншого боку. Переверніть механізм.');
+    toast(t('otherSide'));
     dom.btnFlip.classList.add('nudge');
     sound.wrong();
     return;
   }
   game.miss();
-  toast(`${slots[0].name} стоїть не тут. Придивіться, куди вона підійде.`, true);
+  toast(t('wrongSpot', { name: partName(slots[0]) }), true);
   sound.wrong();
   buzz(30);
   save();
@@ -408,7 +419,7 @@ function onPlaced(slot, autoFitted) {
   dom.btnFlip.classList.remove('nudge');
   setInfo(slot);
   if (slot.screw && game.looseScrews().length === 1) {
-    toast('Гвинт стоїть, але ще не затягнутий. Візьміть викрутку й торкніться його.');
+    toast(t('screwLoose'));
   }
   refresh();
 }
@@ -417,11 +428,11 @@ function onRefused(result) {
   sound.wrong();
   buzz(30);
   if (result.reason === 'loose') {
-    toast('Спершу затягніть усі гвинти: потім до них не дістатись.', true);
+    toast(t('tightenFirst'), true);
     dom.btnTool.classList.add('nudge');
   } else {
-    const names = result.missing.slice(0, 2).map((p) => p.name).join(', ');
-    toast(`Спершу потрібно встановити: ${names}.`, true);
+    const names = result.missing.slice(0, 2).map(partName).join(', ');
+    toast(t('fitFirst', { names }), true);
   }
   save();
 }
@@ -434,7 +445,7 @@ function onStageTap(x, y) {
   if (game.tool === TOOLS.SCREWDRIVER) {
     const screw = scene.nearest(game.looseScrews(), x, y);
     if (!screw) {
-      toast(game.looseScrews(scene.facing()).length ? 'Торкніться незатягнутого гвинта. Він трохи стирчить над мостом.' : 'Незатягнуті гвинти на іншому боці. Переверніть механізм.');
+      toast(t(game.looseScrews(scene.facing()).length ? 'tapLooseScrew' : 'looseOnOtherSide'));
       return;
     }
     game.tighten(screw.id);
@@ -462,7 +473,7 @@ function onToolButton() {
     return;
   }
   if (!game.looseScrews().length) {
-    toast('Зараз немає гвинтів, які треба затягнути.');
+    toast(t('noLooseScrews'));
     return;
   }
   setTool(TOOLS.SCREWDRIVER);
@@ -470,7 +481,7 @@ function onToolButton() {
   renderTray();
   // A loose screw on the far face would be unreachable, so turn the watch round.
   if (!game.looseScrews(scene.facing()).length) scene.turnTo(game.looseScrews()[0].side);
-  toast('Торкніться гвинта, щоб затягнути його.');
+  toast(t('tapToTighten'));
 }
 
 function onHint() {
@@ -483,12 +494,12 @@ function onHint() {
   if (type === 'tighten') {
     setTool(TOOLS.SCREWDRIVER);
     selectedKind = null;
-    toast(`Затягніть цей гвинт: ${part.name.toLowerCase()}.`);
+    toast(t('hintTighten', { name: partName(part).toLowerCase() }));
   } else {
     if (selectedKind && selectedKind !== part.kind) {
-      toast(`Цю деталь рано ставити. Спершу: ${part.name}.`);
+      toast(t('hintTooEarly', { name: partName(part) }));
     } else {
-      toast(`${part.name} стає сюди.`);
+      toast(t('hintPlace', { name: partName(part) }));
     }
     selectedKind = part.kind;
     setTool(TOOLS.TWEEZERS);
@@ -549,35 +560,91 @@ function addWindClick() {
 
 function finishWatch() {
   game.wound = true;
-  const verdict = grade(game);
+  const stars = grade(game);
   const records = store.read(RECORDS_KEY) ?? {};
   const best = records[game.level];
-  if (!best || verdict.stars > best.stars || (verdict.stars === best.stars && game.elapsedMs < best.ms)) {
-    records[game.level] = { stars: verdict.stars, ms: game.elapsedMs };
+  if (!best || stars > best.stars || (stars === best.stars && game.elapsedMs < best.ms)) {
+    records[game.level] = { stars, ms: game.elapsedMs };
     store.write(RECORDS_KEY, records);
   }
   save();
   enterAdmire({ sweep: true });
 
-  $('result-stars').textContent = '★'.repeat(verdict.stars) + '☆'.repeat(3 - verdict.stars);
-  $('result-grade').textContent = verdict.label;
-  $('result-stats').textContent = `Час: ${formatTime(game.elapsedMs)} · помилок: ${game.mistakes} · підказок: ${game.hints}`;
+  renderResult();
   // Time to watch the hands sweep to the hour before the result covers them.
   setTimeout(() => {
     if (game?.wound) show(dom.result);
   }, 2600);
 }
 
+function renderResult() {
+  const stars = grade(game);
+  $('result-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('result-grade').textContent = gradeLabel(stars);
+  $('result-stats').textContent = t('resultStats', {
+    time: formatTime(game.elapsedMs),
+    mistakes: game.mistakes,
+    hints: game.hints,
+  });
+}
+
+function renderBackButton() {
+  dom.btnBack.textContent = t(scene.backOpen ? 'closeBack' : 'openBack');
+}
+
 function enterAdmire({ sweep }) {
   stopTimer();
   showPanel('admire');
-  dom.progressText.textContent = LEVELS[game.level].name;
-  dom.progressFill.style.width = '100%';
+  renderProgress();
   dom.timer.textContent = formatTime(game.elapsedMs);
   scene.onBeat = () => sound.tick();
   scene.startRunning({ sweep });
   scene.turnTo('dial');
-  dom.btnBack.textContent = 'Відкрити кришку';
+  renderBackButton();
+}
+
+// ---- Language
+
+/** Puts the current language on everything already on screen, without disturbing play. */
+function renderLanguage() {
+  const code = getLanguage();
+  document.documentElement.lang = code;
+  document.title = t('appTitle');
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-label]')) el.setAttribute('aria-label', t(el.dataset.i18nLabel));
+  dom.btnLang.textContent = LANGUAGES[code].short;
+  for (const b of dom.menuLang.children) b.setAttribute('aria-pressed', b.dataset.lang === code);
+}
+
+function changeLanguage(code) {
+  setLanguage(code);
+  store.write(LANGUAGE_KEY, getLanguage());
+  dom.toast.hidden = true; // it was written in the old language
+  renderLanguage();
+  if (!game) {
+    fillMenu();
+    return;
+  }
+  setInfo(infoPart);
+  renderProgress();
+  renderTray();
+  if (game.wound) {
+    renderResult();
+    renderBackButton();
+  }
+  syncBenchHeight();
+}
+
+function buildLanguageMenu() {
+  for (const [code, { label }] of Object.entries(LANGUAGES)) {
+    const button = document.createElement('button');
+    button.className = 'lang-btn';
+    button.lang = code;
+    button.dataset.lang = code;
+    button.textContent = label;
+    button.addEventListener('click', () => changeLanguage(code));
+    dom.menuLang.append(button);
+  }
 }
 
 // ---- Wiring
@@ -604,12 +671,17 @@ function wire() {
   dom.btnBack.addEventListener('click', () => {
     const open = !scene.backOpen;
     scene.setBackOpen(open);
-    dom.btnBack.textContent = open ? 'Закрити кришку' : 'Відкрити кришку';
+    renderBackButton();
     if (open) scene.turnTo('train');
   });
   $('btn-admire-menu').addEventListener('click', () => history.back());
   $('btn-result-admire').addEventListener('click', () => show(null));
   $('btn-result-menu').addEventListener('click', () => history.back());
+
+  dom.btnLang.addEventListener('click', () => {
+    const codes = Object.keys(LANGUAGES);
+    changeLanguage(codes[(codes.indexOf(getLanguage()) + 1) % codes.length]);
+  });
 
   dom.btnSound.textContent = sound.enabled ? '🔊' : '🔇';
   dom.btnSound.addEventListener('click', () => {
@@ -649,11 +721,14 @@ function wire() {
 }
 
 function boot() {
+  setLanguage(store.read(LANGUAGE_KEY));
+  buildLanguageMenu();
+  renderLanguage();
   try {
     scene = new WatchScene(dom.canvas);
   } catch (error) {
     console.error(error);
-    $('splash-text').textContent = 'На жаль, цей браузер не підтримує 3D-графіку (WebGL), тому гра не може запуститися.';
+    $('splash-text').textContent = t('noWebgl');
     return;
   }
   // One picture per kind: interchangeable parts share theirs.

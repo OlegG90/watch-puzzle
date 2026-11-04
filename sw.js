@@ -1,7 +1,7 @@
 // Everything the game needs is cached on install, so it plays with no connection.
 // Bump VERSION whenever any listed file changes: that is what delivers the update.
 
-const VERSION = 'godynnykar-v1';
+const VERSION = 'godynnykar-v2';
 const FILES = [
   './',
   'index.html',
@@ -13,6 +13,9 @@ const FILES = [
   'vendor/three.module.min.js',
   'vendor/RoomEnvironment.js',
   'src/main.js',
+  'src/i18n/en.js',
+  'src/i18n/index.js',
+  'src/i18n/uk.js',
   'src/game/layout.js',
   'src/game/parts.js',
   'src/game/state.js',
