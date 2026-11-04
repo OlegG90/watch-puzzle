@@ -4,7 +4,7 @@ import { LEVELS, PARTS, onFace } from './game/parts.js';
 import {
   LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, partDesc, partName, setLanguage, t,
 } from './i18n/index.js';
-import { Game, TOOLS, grade } from './game/state.js';
+import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
 import { attachStageGestures } from './ui/gestures.js';
@@ -335,9 +335,12 @@ function toast(message, bad = false) {
   dom.toast.classList.toggle('bad', bad);
   dom.toast.hidden = false;
   clearTimeout(toastHandle);
-  toastHandle = setTimeout(() => {
-    dom.toast.hidden = true;
-  }, bad ? 3600 : 2400);
+  toastHandle = setTimeout(hideToast, bad ? 3600 : 2400);
+}
+
+function hideToast() {
+  clearTimeout(toastHandle);
+  dom.toast.hidden = true;
 }
 
 // ---- Dragging and placing
@@ -579,7 +582,7 @@ function finishWatch() {
 
 function renderResult() {
   const stars = grade(game);
-  $('result-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  $('result-stars').textContent = '★'.repeat(stars) + '☆'.repeat(MAX_STARS - stars);
   $('result-grade').textContent = gradeLabel(stars);
   $('result-stats').textContent = t('resultStats', {
     time: formatTime(game.elapsedMs),
@@ -619,7 +622,7 @@ function renderLanguage() {
 function changeLanguage(code) {
   setLanguage(code);
   store.write(LANGUAGE_KEY, getLanguage());
-  dom.toast.hidden = true; // it was written in the old language
+  hideToast(); // it was written in the old language
   renderLanguage();
   if (!game) {
     fillMenu();
@@ -628,10 +631,8 @@ function changeLanguage(code) {
   setInfo(infoPart);
   renderProgress();
   renderTray();
-  if (game.wound) {
-    renderResult();
-    renderBackButton();
-  }
+  renderResult();
+  renderBackButton();
   syncBenchHeight();
 }
 
