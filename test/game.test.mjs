@@ -103,6 +103,42 @@ test('the dial refuses to cover loose screws on its side only', () => {
   assert.equal(g.place('dial').ok, true);
 });
 
+test('no cover goes on while anything beneath it is missing', () => {
+  const g = new Game('master');
+  g.place('mainplate');
+  assert.equal(g.place('case').reason, 'blocked');
+  assert.equal(g.place('dial').reason, 'blocked');
+  const dialIndex = PARTS.findIndex((p) => p.id === 'dial');
+  for (const p of PARTS.slice(0, dialIndex).filter((x) => x.side === 'dial')) {
+    assert.ok(PART_BY_ID.dial.requires.includes(p.id), p.id);
+  }
+  const caseIndex = PARTS.findIndex((p) => p.id === 'case');
+  for (const p of PARTS.slice(0, caseIndex)) {
+    assert.ok(PART_BY_ID.case.requires.includes(p.id), p.id);
+  }
+});
+
+test('a tap cannot reach parts hidden under the dial or the case back', () => {
+  const g = new Game('apprentice');
+  for (let s = g.suggest(); s && s.part.id !== 'hourHand'; s = g.suggest()) {
+    if (s.type === 'tighten') g.tighten(s.part.id);
+    else g.place(s.part.id);
+  }
+  const visible = () => g.visibleParts().map((p) => p.id);
+  assert.ok(g.isInstalled('dial'));
+  assert.ok(!visible().includes('hour'));
+  assert.ok(!visible().includes('cannon'));
+  assert.ok(visible().includes('dial'));
+  assert.ok(visible().includes('trainBridge'));
+  for (let s = g.suggest(); s; s = g.suggest()) {
+    if (s.type === 'tighten') g.tighten(s.part.id);
+    else g.place(s.part.id);
+  }
+  assert.ok(!visible().includes('trainBridge'));
+  assert.ok(visible().includes('caseBack'));
+  assert.ok(visible().includes('minuteHand'));
+});
+
 test('tighten only works once, on a fitted screw', () => {
   const g = new Game('master');
   assert.equal(g.tighten('trainScrew1'), false);

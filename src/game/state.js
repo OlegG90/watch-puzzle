@@ -106,6 +106,18 @@ export class Game {
     return { ok: true, auto: this.#fitSmallParts() };
   }
 
+  /** Fitted parts the player can actually see, so a tap never reaches through a cover. */
+  visibleParts() {
+    const dialOn = this.installed.has('dial');
+    const backOn = this.installed.has('caseBack');
+    return PARTS.filter((p) => {
+      if (!this.installed.has(p.id)) return false;
+      if (dialOn && p.side === 'dial' && p.hitZ > PART_BY_ID.dial.hitZ) return false;
+      if (backOn && p.side === 'train' && p.id !== 'caseBack') return false;
+      return true;
+    });
+  }
+
   /** Records a drop that did not land near any slot of the part. */
   miss() {
     this.mistakes += 1;
@@ -121,12 +133,12 @@ export class Game {
   /** The part to do next, for a hint: the selected kind's slot if it is ready. */
   suggest(selectedKind = null) {
     if (selectedKind) {
-      const slot = this.openSlots(selectedKind).find((p) => this.#canFit(p));
+      const slot = this.openSlots(selectedKind).find((p) => this.canFit(p));
       if (slot) return { type: 'place', part: slot };
     }
     const loose = this.looseScrews();
     const blocker = this.playable.find((p) => !this.installed.has(p.id) && p.tight);
-    const next = this.playable.find((p) => !this.installed.has(p.id) && this.#canFit(p));
+    const next = this.playable.find((p) => !this.installed.has(p.id) && this.canFit(p));
     if (loose.length && (!next || next === blocker)) return { type: 'tighten', part: loose[0] };
     if (next) return { type: 'place', part: next };
     if (loose.length) return { type: 'tighten', part: loose[0] };
@@ -146,7 +158,7 @@ export class Game {
     return [...blockers];
   }
 
-  #canFit(part) {
+  canFit(part) {
     if (this.missingFor(part).length) return false;
     if (!part.tight) return true;
     return this.looseScrews(part.tight === 'all' ? null : part.tight).length === 0;

@@ -27,7 +27,11 @@ const FILES = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting()),
+    caches
+      .open(VERSION)
+      // Past the browser's HTTP cache, or an update could store the old files.
+      .then((cache) => cache.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
   );
 });
 

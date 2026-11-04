@@ -267,6 +267,15 @@ export const PARTS = [
   }),
 ];
 
+// Covers go on last: the dial hides its whole side, and the case the whole movement.
+const coverRequires = (id, isBeneath) => {
+  const cover = PARTS.findIndex((p) => p.id === id);
+  const beneath = PARTS.slice(0, cover).filter(isBeneath).map((p) => p.id);
+  PARTS[cover].requires = [...new Set([...PARTS[cover].requires, ...beneath])];
+};
+coverRequires('dial', (p) => p.side === 'dial');
+coverRequires('case', () => true);
+
 export const PART_BY_ID = Object.fromEntries(PARTS.map((p) => [p.id, p]));
 
 export const LEVELS = {

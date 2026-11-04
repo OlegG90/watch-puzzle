@@ -106,6 +106,12 @@ export class WatchScene {
   }
 
   draw() {
+    // Shadows fall differently as the watch turns, even while they are rationed.
+    if (this.yaw !== this.shadowYaw || this.pitch !== this.shadowPitch) {
+      this.shadowYaw = this.yaw;
+      this.shadowPitch = this.pitch;
+      this.renderer.shadowMap.needsUpdate = true;
+    }
     this.watch.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
     this.camera.position.set(this.pan.x, this.pan.y, this.baseDistance / this.zoom);
     this.renderer.render(this.scene, this.camera);

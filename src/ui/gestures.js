@@ -3,7 +3,6 @@
 // shaky the hand, because only movement past TAP_SLOP counts as turning.
 
 const TAP_SLOP = 10; // px
-const TAP_MS = 450;
 
 /**
  * @param {HTMLElement} el
@@ -13,7 +12,6 @@ const TAP_MS = 450;
 export function attachStageGestures(el, handlers) {
   const pointers = new Map();
   let gesture = null; // 'maybe-tap' | 'orbit' | 'pinch'
-  let downAt = 0;
   let startX = 0;
   let startY = 0;
   let lastSpread = 0;
@@ -38,9 +36,8 @@ export function attachStageGestures(el, handlers) {
     pointers.set(e.pointerId, local(e));
     if (pointers.size === 1) {
       gesture = 'maybe-tap';
-      downAt = e.timeStamp;
       ({ x: startX, y: startY } = local(e));
-    } else if (pointers.size === 2) {
+    } else {
       gesture = 'pinch';
       lastSpread = spread();
       lastMid = midpoint();
@@ -71,12 +68,17 @@ export function attachStageGestures(el, handlers) {
     if (!pointers.has(e.pointerId)) return;
     const at = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
-    if (gesture === 'maybe-tap' && !cancelled && pointers.size === 0 && e.timeStamp - downAt < TAP_MS) {
+    if (gesture === 'maybe-tap' && !cancelled && pointers.size === 0) {
       handlers.onTap(at.x, at.y);
     }
     // Lifting one finger of a pinch must not turn into a sudden orbit.
     if (pointers.size === 0) gesture = null;
-    else if (gesture === 'pinch' && pointers.size === 1) gesture = 'settling';
+    else if (pointers.size === 1) gesture = 'settling';
+    else {
+      // Still pinching, with a different pair: measure afresh, or the view jumps.
+      lastSpread = spread();
+      lastMid = midpoint();
+    }
   };
   el.addEventListener('pointerup', (e) => release(e, false));
   el.addEventListener('pointercancel', (e) => release(e, true));

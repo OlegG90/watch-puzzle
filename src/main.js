@@ -60,6 +60,7 @@ let timerHandle = null;
 let timerFrom = 0;
 let toastHandle = null;
 let windClicks = 0;
+let heldCard = false; // one part at a time: a second finger on the tray is ignored
 
 // ---- Screens
 
@@ -80,11 +81,11 @@ function syncBenchHeight() {
 }
 
 function renderMenu() {
+  stopTimer();
   scene.clear();
   game = null;
   setPlaying(false);
   dom.tools.hidden = true;
-  stopTimer();
   dom.menuButtons.replaceChildren();
   const records = store.read(RECORDS_KEY) ?? {};
   const saved = store.read(SAVE_KEY);
@@ -146,7 +147,14 @@ function startGame(level, saved = null) {
 }
 
 function save() {
-  if (game) store.write(SAVE_KEY, game);
+  if (!game) return;
+  if (!document.hidden) syncElapsed();
+  store.write(SAVE_KEY, game);
+}
+
+/** Brings the running clock up to date; between ticks it can lag by a second. */
+function syncElapsed() {
+  if (timerHandle !== null) game.elapsedMs = performance.now() - timerFrom;
 }
 
 function startTimer() {
@@ -154,14 +162,16 @@ function startTimer() {
   timerFrom = performance.now() - game.elapsedMs;
   timerHandle = setInterval(() => {
     if (document.hidden) return;
-    game.elapsedMs = performance.now() - timerFrom;
+    syncElapsed();
     dom.timer.textContent = formatTime(game.elapsedMs);
   }, 1000);
   dom.timer.textContent = formatTime(game.elapsedMs);
 }
 
 function stopTimer() {
-  if (timerHandle !== null) clearInterval(timerHandle);
+  if (timerHandle === null) return;
+  syncElapsed();
+  clearInterval(timerHandle);
   timerHandle = null;
 }
 
@@ -235,13 +245,16 @@ function makeCard(stack) {
 /** A tap selects; a pull out of the tray picks the part up with the finger. */
 function attachCardGestures(card, kind) {
   card.addEventListener('pointerdown', (e) => {
+    if (heldCard) return;
+    heldCard = true;
     sound.unlock();
     const start = { x: e.clientX, y: e.clientY };
     let dragging = false;
 
     const onMove = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
-      if (!dragging && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_START_PX) {
+      if (!game) return; // the Back button left the game mid-gesture
+      if (!dragging && pullsOutOfTray(ev, start)) {
         dragging = true;
         beginDrag(kind, card);
       }
@@ -252,12 +265,14 @@ function attachCardGestures(card, kind) {
     };
     const finish = (ev, cancelled) => {
       if (ev.pointerId !== e.pointerId) return;
+      heldCard = false;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
+      if (!game) return;
       if (dragging) finishDrag(kind, ev, cancelled, card);
       // A cancel without a drag means the browser took the touch to scroll the tray.
-      else if (!cancelled) toggleSelect(kind);
+      else if (!cancelled && !moved(ev, start)) toggleSelect(kind);
     };
     const onUp = (ev) => finish(ev, false);
     const onCancel = (ev) => finish(ev, true);
@@ -269,6 +284,20 @@ function attachCardGestures(card, kind) {
   card.addEventListener('click', (e) => {
     if (e.detail === 0) toggleSelect(kind);
   });
+}
+
+const moved = (ev, start) => Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_START_PX;
+
+/**
+ * A finger moving along the tray is scrolling it, and only one moving across it
+ * lifts the part. A mouse has no scrolling to confuse this with.
+ */
+function pullsOutOfTray(ev, start) {
+  if (!moved(ev, start)) return false;
+  if (ev.pointerType === 'mouse') return true;
+  const dx = Math.abs(ev.clientX - start.x);
+  const dy = Math.abs(ev.clientY - start.y);
+  return getComputedStyle(dom.tray).touchAction.includes('pan-y') ? dx > dy : dy > dx;
 }
 
 function toggleSelect(kind) {
@@ -337,7 +366,7 @@ function beginDrag(kind, card) {
 
 function updateDrag(kind, ev) {
   const p = dragPoint(ev);
-  scene.moveDrag(p.x, p.y, scene.nearest(game.openSlots(kind), p.x, p.y));
+  scene.moveDrag(p.x, p.y, slotAt(kind, p.x, p.y));
 }
 
 function finishDrag(kind, ev, cancelled, card) {
@@ -351,9 +380,15 @@ function finishDrag(kind, ev, cancelled, card) {
   attemptPlace(kind, p.x, p.y);
 }
 
+/** The slot under this point, preferring one the part can go in right now. */
+function slotAt(kind, x, y) {
+  const slots = game.openSlots(kind);
+  return scene.nearest(slots.filter((s) => game.canFit(s)), x, y) ?? scene.nearest(slots, x, y);
+}
+
 function attemptPlace(kind, x, y) {
   const slots = game.openSlots(kind);
-  const slot = scene.nearest(slots, x, y);
+  const slot = slotAt(kind, x, y);
   if (slot) {
     const result = game.place(slot.id);
     if (result.ok) onPlaced(slot, result.auto);
@@ -410,7 +445,8 @@ function onStageTap(x, y) {
   if (game.tool === TOOLS.SCREWDRIVER) {
     const screw = scene.nearest(game.looseScrews(), x, y);
     if (!screw) {
-      toast('Торкніться незатягнутого гвинта. Він трохи стирчить над мостом.');
+      const onThisFace = game.looseScrews().some((p) => p.side === scene.facing());
+      toast(onThisFace ? 'Торкніться незатягнутого гвинта. Він трохи стирчить над мостом.' : 'Незатягнуті гвинти на іншому боці. Переверніть механізм.');
       return;
     }
     game.tighten(screw.id);
@@ -424,7 +460,7 @@ function onStageTap(x, y) {
     attemptPlace(selectedKind, x, y);
     return;
   }
-  const part = scene.nearest(PARTS.filter((p) => game.isInstalled(p.id)), x, y);
+  const part = scene.nearest(game.visibleParts(), x, y);
   if (part) setInfo(part);
 }
 
@@ -459,6 +495,7 @@ function onHint() {
   if (part.side !== 'any' && part.side !== scene.facing()) scene.turnTo(part.side);
   if (type === 'tighten') {
     setTool(TOOLS.SCREWDRIVER);
+    selectedKind = null;
     toast(`Затягніть цей гвинт: ${part.name.toLowerCase()}.`);
   } else {
     if (selectedKind && selectedKind !== part.kind) {
@@ -614,6 +651,9 @@ function wire() {
       save();
       show(null);
       renderMenu();
+    } else {
+      // An entry left over from a reload mid-game: step past it, or Back seems dead.
+      history.back();
     }
   });
   window.addEventListener('pagehide', save);

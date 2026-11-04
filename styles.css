@@ -239,7 +239,7 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   gap: 12px;
   padding: calc(24px + var(--safe-t)) 24px calc(24px + var(--safe-b));
   text-align: center;
@@ -275,7 +275,7 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
 
 /* A phone on its side: the bench moves to the right, the watch keeps the height. */
 @media (orientation: landscape) and (max-height: 520px) {
-  body.playing #stage { top: 0; bottom: 0; right: calc(208px + var(--safe-r)); }
+  body.playing #stage { top: calc(56px + var(--safe-t)); bottom: 0; right: calc(208px + var(--safe-r)); }
   #bench {
     top: 0;
     left: auto;
