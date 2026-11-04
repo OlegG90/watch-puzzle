@@ -479,7 +479,9 @@ function showAimed(point) {
 }
 
 function onHoldStart(x, y) {
-  if (game?.tool !== TOOLS.OILER || game.assembled || overlayOpen()) return false;
+  // The points show whichever tool is in hand, so the loupe does too. A held part still taps.
+  const busy = selectedKind || game?.tool === TOOLS.SCREWDRIVER || overlayOpen();
+  if (busy || !game?.openOilPoints().length) return false;
   sound.unlock();
   buzz(8);
   hideToast();
@@ -499,8 +501,14 @@ function onAimEnd(cancelled) {
   if (!scene.loupe) return;
   dom.loupe.hidden = true;
   const point = scene.endAim();
-  setOilInfo();
-  if (!cancelled) oilPoint(point);
+  if (game.tool === TOOLS.OILER) {
+    setOilInfo();
+    if (!cancelled) oilPoint(point);
+  } else if (cancelled) {
+    setInfo(null);
+  } else {
+    setTool(TOOLS.OILER); // no oil was in hand to apply: offer it, for the point they were looking at
+  }
 }
 
 /** For anything that takes the player away from aiming while the finger is still down. */

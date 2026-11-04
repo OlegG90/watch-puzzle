@@ -4,7 +4,7 @@
 // can start aiming, if onHoldStart accepts it; otherwise it is still a tap.
 
 const TAP_SLOP = 10; // px
-const HOLD_MS = 280;
+const HOLD_MS = 200;
 
 /**
  * @param {HTMLElement} el
