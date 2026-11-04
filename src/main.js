@@ -8,6 +8,7 @@ import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
 import { attachStageGestures } from './ui/gestures.js';
+import { VERSION } from './version.js';
 
 const SAVE_KEY = 'godynnykar.save.v1';
 const RECORDS_KEY = 'godynnykar.records.v1';
@@ -16,6 +17,7 @@ const LANGUAGE_KEY = 'godynnykar.language.v1';
 const WIND_CLICKS = 24;
 const WIND_PX_PER_CLICK = 16;
 const DRAG_START_PX = 8;
+const BACK_VIEW_PX = 480;
 const REFERENCE_PX = 720;
 const REFERENCE_TILT = 0.12;
 const FINGER_CLEARANCE = 64; // the held part floats above the finger, so it stays visible
@@ -30,7 +32,7 @@ const dom = {
   wind: $('wind'), windStrip: $('wind-strip'), windFill: document.querySelector('#wind-bar span'),
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
-  reference: $('reference'), referenceViews: $('reference-views'),
+  reference: $('reference'), referenceViews: $('reference-views'), viewPanel: $('view-panel'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -67,7 +69,7 @@ let infoPart = null; // what the info panel describes; null shows the instructio
 // ---- Screens
 
 function show(screen) {
-  for (const s of [dom.menu, dom.result, dom.reference]) s.hidden = s !== screen;
+  for (const s of [dom.menu, dom.result, dom.reference, dom.viewPanel]) s.hidden = s !== screen;
 }
 
 function setPlaying(playing) {
@@ -537,14 +539,28 @@ function buildReference() {
   }
 }
 
-function openReference() {
+/** The back of the watch, for the menu and the View panel. Rendered once, at start-up. */
+function renderBackView() {
+  const view = REFERENCE_VIEWS.find((v) => v.key === 'refTrainSide');
+  const picture = scene.stills([view], BACK_VIEW_PX, REFERENCE_TILT).get(view.key);
+  for (const img of document.querySelectorAll('.back-view')) img.src = picture;
+}
+
+/** A full-screen panel over the game. Looking is free, and that includes the clock. */
+function openOverlay(screen) {
   sound.unlock();
-  stopTimer(); // looking is free, and that includes the clock
+  stopTimer();
+  show(screen);
+  screen.scrollTop = 0;
+  // An entry of its own, so the phone's Back button closes the panel, not the game.
+  history.pushState({ game: true, overlay: true }, '');
+}
+
+const overlayOpen = () => !dom.reference.hidden || !dom.viewPanel.hidden;
+
+function openReference() {
   if (!dom.referenceViews.children.length) buildReference();
-  show(dom.reference);
-  dom.reference.scrollTop = 0;
-  // An entry of its own, so the phone's Back button closes the pictures, not the game.
-  history.pushState({ game: true, reference: true }, '');
+  openOverlay(dom.reference);
 }
 
 // ---- Winding, the reward
@@ -647,6 +663,7 @@ function renderLanguage() {
   document.title = t('appTitle');
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-label]')) el.setAttribute('aria-label', t(el.dataset.i18nLabel));
+  $('app-version').textContent = t('version', { version: VERSION });
   dom.btnLang.textContent = LANGUAGES[code].short;
   for (const b of dom.menuLang.children) b.setAttribute('aria-pressed', b.dataset.lang === code);
 }
@@ -698,9 +715,15 @@ function wire() {
   });
   dom.btnTool.addEventListener('click', onToolButton);
   $('btn-hint').addEventListener('click', onHint);
-  $('btn-view').addEventListener('click', () => scene.resetView());
+  $('btn-view').addEventListener('click', () => openOverlay(dom.viewPanel));
+  $('btn-view-reset').addEventListener('click', () => {
+    scene.resetView();
+    history.back();
+  });
   $('btn-reference').addEventListener('click', openReference);
-  $('btn-reference-close').addEventListener('click', () => history.back());
+  for (const button of document.querySelectorAll('.close-overlay')) {
+    button.addEventListener('click', () => history.back());
+  }
 
   $('btn-admire-flip').addEventListener('click', () => scene.flip());
   dom.btnBack.addEventListener('click', () => {
@@ -728,7 +751,7 @@ function wire() {
 
   // The phone's Back button leaves the game for the menu, not the whole app.
   window.addEventListener('popstate', () => {
-    if (!dom.reference.hidden) {
+    if (overlayOpen()) {
       show(null);
       startTimer();
     } else if (game) {
@@ -774,9 +797,10 @@ function boot() {
   for (const p of PARTS) if (!firstOfKind.has(p.kind)) firstOfKind.set(p.kind, p.id);
   const pictures = scene.thumbnails([...firstOfKind.values()]);
   thumbs = new Map([...firstOfKind].map(([kind, id]) => [kind, pictures.get(id)]));
+  renderBackView();
   wire();
   // A reload mid-game lands on the game's history entry: leave it, so Back still works.
-  if (history.state?.game) history.go(history.state.reference ? -2 : -1);
+  if (history.state?.game) history.go(history.state.overlay ? -2 : -1);
   renderMenu();
   dom.splash.hidden = true;
 

@@ -4,6 +4,8 @@ A phone game: assemble a gold pocket watch part by part, then wind it, and it sh
 
 **Play it:** <https://olegg90.github.io/watch-puzzle/>. On a phone, you can install it from the browser menu, and it then plays offline.
 
+See the [releases](https://github.com/OlegG90/watch-puzzle/releases) and the [changelog](CHANGELOG.md) for what has changed.
+
 The game is available in English (the default) and Ukrainian, with a switcher in the menu and during play.
 
 This is an original implementation of the idea behind the game Watchmaker PRO. The code, 3D parts, text and sounds were all made here, and nothing is copied from the original.
@@ -32,6 +34,14 @@ The game plays this way but cannot be installed: browsers require HTTPS for inst
 npm test
 ```
 
+## Releasing
+
+1. On a branch, set the new version in `src/version.js`, `package.json` and `sw.js`, and describe it in `CHANGELOG.md`. A test checks that they agree.
+2. Merge the pull request into `main`. GitHub Pages publishes the game.
+3. Tag the merge and create the release from `main`, for example `gh release create v0.1.3 --target main`.
+
+Installed copies update themselves: the new version downloads on the next launch and shows on the launch after that.
+
 ## Layout
 
 - `src/game/`: the rules, the parts catalogue, and the movement's geometry and kinematics, with no graphics.
@@ -39,5 +49,5 @@ npm test
 - `src/i18n/`: all the game's text. A new string must be added to every language, and a test checks this.
 - `src/ui/`: gestures and sound.
 - `src/main.js`: connects all of this to the interface.
-- `sw.js`: the offline cache. When you change any game file, increase `VERSION`, or installed copies will not update.
+- `sw.js`: the offline cache. Installed copies only update when the version changes, so every change to a game file needs a new version.
 - `vendor/`: Three.js 0.170.0 (MIT license).
