@@ -67,6 +67,9 @@ export default {
     oilOnOtherSide: 'The points left to oil are on the other side. Flip the movement.',
     tapCloser: 'These points are close together. Now tap the one you mean.',
     wrongOil: '{name}: wrong oil. {why}',
+    holdForLoupe: 'Hold your finger down for a magnifier.',
+    trayBack: 'Earlier parts',
+    trayOn: 'More parts',
     oilFirst: 'This part would cover a point that needs oil. First oil: {names}.',
     hintOil: '{name}: use {oil}.',
 

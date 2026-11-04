@@ -177,17 +177,17 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
 #tray.more-before { --fade-before: var(--fade-size); }
 #tray.more-after { --fade-after: var(--fade-size); }
 #tray-box { position: relative; display: flex; flex-direction: column; }
-/* Fading alone is easy to miss. These stay put while the cards scroll past, and let touches through. */
+/* Fading alone is easy to miss. These stay put while the cards scroll past, and scroll them when tapped. */
 .tray-arrow {
   display: none;
   position: absolute;
   top: calc(50% - 16px);
   width: 32px;
   height: 32px;
+  padding: 0;
   border-radius: 50%;
   background: var(--gold);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
 }
 .tray-arrow::after {
   content: '';

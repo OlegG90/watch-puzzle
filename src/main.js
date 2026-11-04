@@ -26,6 +26,7 @@ const REFERENCE_PX = 720;
 const REFERENCE_TILT = 0.12;
 const FINGER_CLEARANCE = 64; // the held part floats above the finger, so it stays visible
 const LOUPE_GAP = 48; // px between the fingertip and the loupe
+const PAGE_SHARE = 0.8; // of the tray, so a card cut off at the edge shows whole after a page
 
 const $ = (id) => document.getElementById(id);
 const dom = {
@@ -108,6 +109,7 @@ function syncBenchHeight() {
 
 function renderMenu() {
   stopTimer();
+  callOffAim();
   scene.clear();
   game = null;
   setPlaying(false);
@@ -119,7 +121,10 @@ function renderMenu() {
 function fillMenu() {
   dom.menuButtons.replaceChildren();
   const records = store.read(RECORDS_KEY) ?? {};
-  const saves = [SAVE_KEY, EXPERT_SAVE_KEY].map((key) => store.read(key)).filter((s) => LEVELS.includes(s?.level));
+  // A game with nothing done yet is not worth continuing: starting anew gives the same.
+  const saves = [SAVE_KEY, EXPERT_SAVE_KEY]
+    .map((key) => store.read(key))
+    .filter((s) => LEVELS.includes(s?.level) && s.installed?.length);
   for (const saved of saves) {
     const g = new Game(saved.level, saved);
     const note = t('resumeNote', { level: levelName(saved.level), placed: g.placed, total: g.total });
@@ -359,10 +364,11 @@ function setInfo(part) {
 
 function setOilInfo() {
   dom.infoTitle.textContent = selectedOil ? oilName(selectedOil) : t('pickOilTitle');
-  dom.infoText.textContent = selectedOil ? oilDesc(selectedOil) : t('pickOilText');
+  dom.infoText.textContent = selectedOil ? `${oilDesc(selectedOil)} ${t('holdForLoupe')}` : t('pickOilText');
 }
 
 function setTool(tool) {
+  callOffAim();
   const wasOiling = game.tool === TOOLS.OILER;
   game.tool = tool;
   dom.btnTool.classList.toggle('active', tool === TOOLS.SCREWDRIVER);
@@ -414,22 +420,24 @@ function onOilerButton() {
   renderTray();
 }
 
-function oilAt(x, y, { aimed = false } = {}) {
-  const points = game.openOilPoints();
+function oilAt(x, y) {
+  const { point, unclear } = scene.oilPointAt(game.openOilPoints(), x, y);
+  if (unclear && selectedOil) {
+    scene.focusOn(point);
+    toast(t('tapCloser'));
+    return;
+  }
+  oilPoint(point);
+}
+
+function oilPoint(point) {
   if (!selectedOil) {
     toast(t('pickOilFirst'));
     return;
   }
-  const { point, unclear } = scene.oilPointAt(points, x, y);
   if (!point) {
-    const here = points.some((p) => onFace(p, scene.facing()));
+    const here = game.openOilPoints().some((p) => onFace(p, scene.facing()));
     toast(t(here ? 'tapOilPoint' : 'oilOnOtherSide'));
-    return;
-  }
-  // Under the loupe the player has seen which point is marked, so there is nothing to guess.
-  if (unclear && !aimed) {
-    scene.focusOn(point);
-    toast(t('tapCloser'));
     return;
   }
   if (game.applyOil(point.id, selectedOil).ok) {
@@ -446,14 +454,23 @@ function oilAt(x, y, { aimed = false } = {}) {
 
 // ---- The loupe: a finger held down shows what is under it, and letting go oils that point
 
-/** Keeps the loupe clear of the finger: above it, or below when there is no room. */
+/** Keeps the loupe whole and clear of the finger: above it, below it, or else beside it. */
 function placeLoupe(x, y) {
   const box = dom.canvas.getBoundingClientRect();
   const size = dom.loupe.offsetWidth;
-  const left = box.left + x - size / 2;
-  const above = box.top + y - size - LOUPE_GAP;
+  const fingerX = box.left + x;
+  const fingerY = box.top + y;
+  const above = fingerY - LOUPE_GAP - size;
+  const below = fingerY + LOUPE_GAP;
+  let left = fingerX - size / 2;
+  let top = above;
+  if (above < 0) top = below;
+  if (above < 0 && below + size > innerHeight) {
+    top = fingerY - size / 2;
+    left = fingerX - LOUPE_GAP - size >= 0 ? fingerX - LOUPE_GAP - size : fingerX + LOUPE_GAP;
+  }
   dom.loupe.style.left = `${Math.min(innerWidth - size, Math.max(0, left))}px`;
-  dom.loupe.style.top = `${above >= 0 ? above : box.top + y + LOUPE_GAP}px`;
+  dom.loupe.style.top = `${Math.min(innerHeight - size, Math.max(0, top))}px`;
 }
 
 function showAimed(point) {
@@ -462,7 +479,7 @@ function showAimed(point) {
 }
 
 function onHoldStart(x, y) {
-  if (game?.tool !== TOOLS.OILER || game.assembled) return false;
+  if (game?.tool !== TOOLS.OILER || game.assembled || overlayOpen()) return false;
   sound.unlock();
   buzz(8);
   hideToast();
@@ -473,17 +490,22 @@ function onHoldStart(x, y) {
 }
 
 function onAim(x, y) {
-  if (!scene.loupe) return; // the Back button left the game mid-gesture
+  if (!scene.loupe) return; // aiming was called off by a button or by leaving the game
   placeLoupe(x, y);
   showAimed(scene.aim(x, y));
 }
 
-function onAimEnd(x, y, cancelled) {
+function onAimEnd(cancelled) {
+  if (!scene.loupe) return;
   dom.loupe.hidden = true;
-  scene.endAim();
-  if (!game) return;
+  const point = scene.endAim();
   setOilInfo();
-  if (!cancelled) oilAt(x, y, { aimed: true });
+  if (!cancelled) oilPoint(point);
+}
+
+/** For anything that takes the player away from aiming while the finger is still down. */
+function callOffAim() {
+  if (scene.loupe) onAimEnd(true);
 }
 
 // ---- Toasts
@@ -724,6 +746,7 @@ function renderBackView() {
 
 /** A full-screen panel over the game. Looking is free, and that includes the clock. */
 function openOverlay(screen) {
+  callOffAim();
   sound.unlock();
   stopTimer();
   show(screen);
@@ -897,6 +920,13 @@ function wire() {
   });
   dom.btnTool.addEventListener('click', onToolButton);
   dom.btnOiler.addEventListener('click', onOilerButton);
+  // A page of cards at a time, on whichever axis the tray scrolls. A mouse has no other way.
+  for (const [id, direction] of [['tray-back', -1], ['tray-on', 1]]) {
+    $(id).addEventListener('click', () => {
+      const distance = direction * PAGE_SHARE;
+      dom.tray.scrollBy({ left: distance * dom.tray.clientWidth, top: distance * dom.tray.clientHeight, behavior: 'smooth' });
+    });
+  }
   buildOils();
   $('btn-hint').addEventListener('click', onHint);
   $('btn-view').addEventListener('click', () => openOverlay(dom.viewPanel));

@@ -9,7 +9,7 @@ const HOLD_MS = 280;
 /**
  * @param {HTMLElement} el
  * @param {{onTap(x,y), onOrbit(dx,dy), onPinch(factor), onPan(dx,dy),
- *   onHoldStart(x,y): boolean, onAim(x,y), onAimEnd(x,y,cancelled)}} handlers
+ *   onHoldStart(x,y): boolean, onAim(x,y), onAimEnd(cancelled)}} handlers
  *   coordinates are relative to the element
  */
 export function attachStageGestures(el, handlers) {
@@ -43,10 +43,12 @@ export function attachStageGestures(el, handlers) {
       gesture = 'maybe-tap';
       ({ x: startX, y: startY } = local(e));
       holdTimer = setTimeout(() => {
-        if (gesture === 'maybe-tap' && handlers.onHoldStart(startX, startY)) gesture = 'aim';
+        if (gesture !== 'maybe-tap') return;
+        const { x, y } = pointers.get(e.pointerId); // within TAP_SLOP of the start, not at it
+        if (handlers.onHoldStart(x, y)) gesture = 'aim';
       }, HOLD_MS);
     } else {
-      if (gesture === 'aim') handlers.onAimEnd(startX, startY, true);
+      if (gesture === 'aim') handlers.onAimEnd(true);
       gesture = 'pinch';
       lastSpread = spread();
       lastMid = midpoint();
@@ -81,7 +83,7 @@ export function attachStageGestures(el, handlers) {
     const at = pointers.get(e.pointerId);
     pointers.delete(e.pointerId);
     clearTimeout(holdTimer);
-    if (gesture === 'aim') handlers.onAimEnd(at.x, at.y, cancelled);
+    if (gesture === 'aim') handlers.onAimEnd(cancelled);
     if (gesture === 'maybe-tap' && !cancelled && pointers.size === 0) {
       handlers.onTap(at.x, at.y);
     }

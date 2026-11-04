@@ -169,27 +169,35 @@ export class WatchScene {
     return this.aim(x, y);
   }
 
-  /** Moves the aim, marking the oil point it would take. @returns the point, or null */
+  /** Moves the aim, marking the nearest oil point inside the loupe. @returns the point, or null */
   aim(x, y) {
-    Object.assign(this.loupe, { x, y });
+    const inLoupe = this.loupe.canvas.clientWidth / 2 / LOUPE_ZOOM;
     const points = [...this.oilMarkers.values()].map((m) => m.userData.point);
-    const { point } = this.oilPointAt(points, x, y);
+    const [nearest] = this.partsInReach(points, x, y)
+      .filter(({ distance }) => distance <= inLoupe)
+      .sort((a, b) => a.distance - b.distance);
+    const point = nearest?.part ?? null;
+    Object.assign(this.loupe, { x, y, point });
+    this.markAimed(point);
+    this.invalidate();
+    return point;
+  }
+
+  /** Ends aiming. @returns the point it ended on, or null */
+  endAim() {
+    const point = this.loupe?.point ?? null;
+    this.loupe = null;
+    this.markAimed(null);
+    this.invalidate();
+    return point;
+  }
+
+  markAimed(point) {
     for (const marker of this.oilMarkers.values()) {
       const aimed = marker.userData.point === point;
       marker.material = aimed ? this.oilAimMaterial : this.oilMarkerMaterial;
       marker.scale.setScalar(OIL_MARKER_R * (aimed ? 1.3 : 1));
     }
-    this.invalidate();
-    return point;
-  }
-
-  endAim() {
-    this.loupe = null;
-    for (const marker of this.oilMarkers.values()) {
-      marker.material = this.oilMarkerMaterial;
-      marker.scale.setScalar(OIL_MARKER_R);
-    }
-    this.invalidate();
   }
 
   /** Applies the view to the matrices. Cheap: the watch's parts are not walked. */
@@ -300,6 +308,7 @@ export class WatchScene {
     this.clearHint();
     this.stopRunning();
     this.tweens = [];
+    this.loupe = null;
     this.clearOil();
     for (const object of this.objects.values()) {
       this.watch.remove(object);
