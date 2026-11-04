@@ -81,6 +81,16 @@ test('apprentice plays fewer parts than master and fits the rest itself', () => 
   assert.equal(m.place('mainplate').auto.length, 0);
 });
 
+test('apprentice never needs the screwdriver', () => {
+  const game = new Game('apprentice');
+  while (!game.assembled) {
+    const { type, part } = game.suggest();
+    assert.equal(type, 'place');
+    game.place(part.id);
+    assert.equal(game.looseScrews().length, 0, `loose screws after ${part.id}`);
+  }
+});
+
 test('fitting out of order is refused, names the blocker, and counts a mistake', () => {
   const g = new Game('master');
   const r = g.place('drum');

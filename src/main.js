@@ -151,6 +151,7 @@ function startGame(level, saved = null) {
   const existing = store.read(SAVE_KEY);
   if (!saved && existing?.installed?.length && !existing.wound && !confirm(t('confirmRestart'))) return;
   game = new Game(level, saved);
+  dom.btnTool.hidden = level === 'apprentice'; // its screws tighten themselves
   selectedKind = null;
   windClicks = 0;
   scene.load(game);
