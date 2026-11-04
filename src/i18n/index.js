@@ -32,3 +32,7 @@ export const partDesc = (part) => partText(part).desc;
 export const levelName = (level) => dictionary().levels[level].name;
 export const levelNote = (level) => dictionary().levels[level].note;
 export const gradeLabel = (stars) => dictionary().grades[stars];
+export const oilName = (oil) => dictionary().oils[oil].name;
+export const oilDesc = (oil) => dictionary().oils[oil].desc;
+export const oilWhy = (oil) => dictionary().oils[oil].why;
+export const oilPointName = (point) => dictionary().oilPoints[point.id];

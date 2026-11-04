@@ -226,4 +226,4 @@ export const onFace = (part, side) => part.side === 'any' || part.side === side;
 
 export const PART_BY_ID = Object.fromEntries(PARTS.map((p) => [p.id, p]));
 
-export const LEVELS = ['apprentice', 'master'];
+export const LEVELS = ['apprentice', 'master', 'expert'];

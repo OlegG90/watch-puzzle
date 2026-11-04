@@ -1,8 +1,10 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
+import { OILS, OIL_COLORS } from './game/oil.js';
 import { LEVELS, PARTS, REFERENCE_VIEWS, onFace } from './game/parts.js';
 import {
-  LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, partDesc, partName, setLanguage, t,
+  LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, oilDesc, oilName, oilPointName, oilWhy,
+  partDesc, partName, setLanguage, t,
 } from './i18n/index.js';
 import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
@@ -12,6 +14,7 @@ import { attachScrollHint } from './ui/scrollHint.js';
 import { VERSION } from './version.js';
 
 const SAVE_KEY = 'godynnykar.save.v1';
+const EXPERT_SAVE_KEY = 'godynnykar.save.expert.v1';
 const RECORDS_KEY = 'godynnykar.records.v1';
 const SOUND_KEY = 'godynnykar.sound.v1';
 const LANGUAGE_KEY = 'godynnykar.language.v1';
@@ -22,6 +25,8 @@ const BACK_VIEW_PX = 480;
 const REFERENCE_PX = 720;
 const REFERENCE_TILT = 0.12;
 const FINGER_CLEARANCE = 64; // the held part floats above the finger, so it stays visible
+const LOUPE_GAP = 48; // px between the fingertip and the loupe
+const PAGE_SHARE = 0.8; // of the tray, so a card cut off at the edge shows whole after a page
 
 const $ = (id) => document.getElementById(id);
 const dom = {
@@ -34,6 +39,7 @@ const dom = {
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
   reference: $('reference'), referenceViews: $('reference-views'), viewPanel: $('view-panel'),
+  btnOiler: $('btn-oiler'), oilBadge: $('oil-badge'), oils: $('oils'), loupe: $('loupe'), trayBox: $('tray-box'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -69,6 +75,7 @@ let toastHandle = null;
 let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
 let infoPart = null; // what the info panel describes; null shows the instructions
+let selectedOil = null;
 
 // ---- Screens
 
@@ -85,7 +92,9 @@ function setPlaying(playing) {
 
 /** Which of the bench's three panels is showing. */
 function showPanel(panel) {
-  dom.tray.hidden = panel !== 'tray';
+  const oiling = panel === 'tray' && game?.tool === TOOLS.OILER;
+  dom.trayBox.hidden = panel !== 'tray' || oiling;
+  dom.oils.hidden = !oiling;
   dom.info.hidden = panel !== 'tray';
   dom.wind.hidden = panel !== 'wind';
   dom.admire.hidden = panel !== 'admire';
@@ -100,6 +109,7 @@ function syncBenchHeight() {
 
 function renderMenu() {
   stopTimer();
+  callOffAim();
   scene.clear();
   game = null;
   setPlaying(false);
@@ -111,8 +121,11 @@ function renderMenu() {
 function fillMenu() {
   dom.menuButtons.replaceChildren();
   const records = store.read(RECORDS_KEY) ?? {};
-  const saved = store.read(SAVE_KEY);
-  if (LEVELS.includes(saved?.level)) {
+  // A game with nothing done yet is not worth continuing: starting anew gives the same.
+  const saves = [SAVE_KEY, EXPERT_SAVE_KEY]
+    .map((key) => store.read(key))
+    .filter((s) => LEVELS.includes(s?.level) && s.installed?.length);
+  for (const saved of saves) {
     const g = new Game(saved.level, saved);
     const note = t('resumeNote', { level: levelName(saved.level), placed: g.placed, total: g.total });
     dom.menuButtons.append(menuButton(t('resume'), note, () => startGame(saved.level, saved)));
@@ -125,7 +138,7 @@ function fillMenu() {
       `${levelNote(level)}${bestText}`,
       () => startGame(level),
     );
-    if (saved) button.classList.add('ghost');
+    if (saves.length) button.classList.add('ghost');
     dom.menuButtons.append(button);
   }
 }
@@ -146,13 +159,19 @@ function menuButton(title, subtitle, onClick) {
 
 // ---- Starting and saving
 
+/** Expert keeps its own save, so it never costs a game in progress on the other levels. */
+const saveKey = (level) => (level === 'expert' ? EXPERT_SAVE_KEY : SAVE_KEY);
+
 function startGame(level, saved = null) {
   // A new game replaces the save, so ask before throwing real progress away.
-  const existing = store.read(SAVE_KEY);
+  const existing = store.read(saveKey(level));
   if (!saved && existing?.installed?.length && !existing.wound && !confirm(t('confirmRestart'))) return;
   game = new Game(level, saved);
   dom.btnTool.hidden = !game.usesScrewdriver;
+  dom.btnOiler.hidden = !game.usesOil;
   selectedKind = null;
+  selectedOil = null;
+  setTool(TOOLS.TWEEZERS);
   windClicks = 0;
   scene.load(game);
   show(null);
@@ -170,7 +189,7 @@ function startGame(level, saved = null) {
 function save() {
   if (!game) return;
   if (!document.hidden) syncElapsed();
-  store.write(SAVE_KEY, game);
+  store.write(saveKey(game.level), game);
 }
 
 /** Brings the running clock up to date; between ticks it can lag by a second. */
@@ -219,7 +238,14 @@ function refresh() {
   dom.btnTool.classList.toggle('nudge', loose > 0 && game.tool !== TOOLS.SCREWDRIVER);
   if (loose === 0 && game.tool === TOOLS.SCREWDRIVER) setTool(TOOLS.TWEEZERS);
 
+  const openOil = game.openOilPoints().length;
+  dom.oilBadge.hidden = openOil === 0;
+  dom.oilBadge.textContent = openOil;
+  if (openOil === 0 && game.tool === TOOLS.OILER) setTool(TOOLS.TWEEZERS);
+  scene.syncOil(game);
+
   renderTray();
+  renderOils();
 
   if (game.assembled) enterWinding();
   else showPanel('tray');
@@ -336,9 +362,158 @@ function setInfo(part) {
   dom.infoText.textContent = part ? partDesc(part) : t('pickText');
 }
 
+function setOilInfo() {
+  dom.infoTitle.textContent = selectedOil ? oilName(selectedOil) : t('pickOilTitle');
+  dom.infoText.textContent = selectedOil ? `${oilDesc(selectedOil)} ${t('holdForLoupe')}` : t('pickOilText');
+}
+
 function setTool(tool) {
+  callOffAim();
+  const wasOiling = game.tool === TOOLS.OILER;
   game.tool = tool;
   dom.btnTool.classList.toggle('active', tool === TOOLS.SCREWDRIVER);
+  dom.btnOiler.classList.toggle('active', tool === TOOLS.OILER);
+  if (tool === TOOLS.OILER) setOilInfo();
+  else if (wasOiling) {
+    setInfo(null);
+    scene.resetView(); // moving in on a point should not outlast the oiler
+  }
+  showPanel('tray');
+}
+
+// ---- The oiler
+
+function buildOils() {
+  for (const oil of OILS) {
+    const button = document.createElement('button');
+    button.className = 'oil-btn';
+    button.dataset.oil = oil;
+    const cup = document.createElement('span');
+    cup.className = 'oil-cup';
+    cup.style.setProperty('--oil', OIL_COLORS[oil]);
+    button.append(cup, document.createElement('span'));
+    button.addEventListener('click', () => {
+      sound.unlock();
+      selectedOil = oil;
+      renderOils();
+      setOilInfo();
+    });
+    dom.oils.append(button);
+  }
+}
+
+function renderOils() {
+  for (const button of dom.oils.children) {
+    button.lastChild.textContent = oilName(button.dataset.oil);
+    button.setAttribute('aria-pressed', button.dataset.oil === selectedOil);
+  }
+}
+
+function onOilerButton() {
+  sound.unlock();
+  if (game.tool !== TOOLS.OILER && !game.openOilPoints().length) {
+    toast(t('noOilPoints'));
+    return;
+  }
+  setTool(game.tool === TOOLS.OILER ? TOOLS.TWEEZERS : TOOLS.OILER);
+  selectedKind = null;
+  renderTray();
+}
+
+function oilAt(x, y) {
+  const { point, unclear } = scene.oilPointAt(game.openOilPoints(), x, y);
+  if (unclear && selectedOil) {
+    scene.focusOn(point);
+    toast(t('tapCloser'));
+    return;
+  }
+  oilPoint(point);
+}
+
+function oilPoint(point) {
+  if (!selectedOil) {
+    toast(t('pickOilFirst'));
+    return;
+  }
+  if (!point) {
+    const here = game.openOilPoints().some((p) => onFace(p, scene.facing()));
+    toast(t(here ? 'tapOilPoint' : 'oilOnOtherSide'));
+    return;
+  }
+  if (game.applyOil(point.id, selectedOil).ok) {
+    sound.place();
+    buzz(12);
+    refresh();
+    return;
+  }
+  sound.wrong();
+  buzz(30);
+  toast(t('wrongOil', { name: oilPointName(point), why: oilWhy(point.oil) }), true);
+  save();
+}
+
+// ---- The loupe: a finger held down shows what is under it, and letting go oils that point
+
+/** Keeps the loupe whole and clear of the finger: above it, below it, or else beside it. */
+function placeLoupe(x, y) {
+  const box = dom.canvas.getBoundingClientRect();
+  const size = dom.loupe.offsetWidth;
+  const fingerX = box.left + x;
+  const fingerY = box.top + y;
+  const above = fingerY - LOUPE_GAP - size;
+  const below = fingerY + LOUPE_GAP;
+  let left = fingerX - size / 2;
+  let top = above;
+  if (above < 0) top = below;
+  if (above < 0 && below + size > innerHeight) {
+    top = fingerY - size / 2;
+    left = fingerX - LOUPE_GAP - size >= 0 ? fingerX - LOUPE_GAP - size : fingerX + LOUPE_GAP;
+  }
+  dom.loupe.style.left = `${Math.min(innerWidth - size, Math.max(0, left))}px`;
+  dom.loupe.style.top = `${Math.min(innerHeight - size, Math.max(0, top))}px`;
+}
+
+function showAimed(point) {
+  setOilInfo();
+  if (point) dom.infoTitle.textContent = oilPointName(point);
+}
+
+function onHoldStart(x, y) {
+  // The points show whichever tool is in hand, so the loupe does too. A held part still taps.
+  const busy = selectedKind || game?.tool === TOOLS.SCREWDRIVER || overlayOpen();
+  if (busy || !game?.openOilPoints().length) return false;
+  sound.unlock();
+  buzz(8);
+  hideToast();
+  dom.loupe.hidden = false;
+  placeLoupe(x, y);
+  showAimed(scene.startAim(dom.loupe, x, y));
+  return true;
+}
+
+function onAim(x, y) {
+  if (!scene.loupe) return; // aiming was called off by a button or by leaving the game
+  placeLoupe(x, y);
+  showAimed(scene.aim(x, y));
+}
+
+function onAimEnd(cancelled) {
+  if (!scene.loupe) return;
+  dom.loupe.hidden = true;
+  const point = scene.endAim();
+  if (game.tool === TOOLS.OILER) {
+    setOilInfo();
+    if (!cancelled) oilPoint(point);
+  } else if (cancelled) {
+    setInfo(null);
+  } else {
+    setTool(TOOLS.OILER); // no oil was in hand to apply: offer it, for the point they were looking at
+  }
+}
+
+/** For anything that takes the player away from aiming while the finger is still down. */
+function callOffAim() {
+  if (scene.loupe) onAimEnd(true);
 }
 
 // ---- Toasts
@@ -446,6 +621,8 @@ function onRefused(result) {
   if (result.reason === 'loose') {
     toast(t('tightenFirst'), true);
     dom.btnTool.classList.add('nudge');
+  } else if (result.reason === 'unoiled') {
+    toast(t('oilFirst', { names: result.unoiled.slice(0, 2).map(oilPointName).join(', ') }), true);
   } else {
     const names = result.missing.slice(0, 2).map(partName).join(', ');
     toast(t('fitFirst', { names }), true);
@@ -458,6 +635,10 @@ function onRefused(result) {
 function onStageTap(x, y) {
   sound.unlock();
   if (!game || game.wound || game.assembled) return;
+  if (game.tool === TOOLS.OILER) {
+    oilAt(x, y);
+    return;
+  }
   if (game.tool === TOOLS.SCREWDRIVER) {
     const screw = scene.nearest(game.looseScrews(), x, y);
     if (!screw) {
@@ -505,7 +686,20 @@ function onHint() {
   const suggestion = game.suggest(selectedKind);
   if (!suggestion) return;
   game.hints += 1;
-  const { type, part } = suggestion;
+  const { type, part, point } = suggestion;
+  if (type === 'oil') {
+    scene.resetView(); // the point may be off screen after moving in on another
+    if (!onFace(point, scene.facing())) scene.turnTo(point.side);
+    selectedOil = point.oil;
+    selectedKind = null;
+    setTool(TOOLS.OILER);
+    renderTray();
+    setOilInfo();
+    toast(t('hintOil', { name: oilPointName(point), oil: oilName(point.oil) }));
+    refresh();
+    scene.pulseOilPoint(point);
+    return;
+  }
   if (!onFace(part, scene.facing())) scene.turnTo(part.side);
   if (type === 'tighten') {
     setTool(TOOLS.SCREWDRIVER);
@@ -560,6 +754,7 @@ function renderBackView() {
 
 /** A full-screen panel over the game. Looking is free, and that includes the clock. */
 function openOverlay(screen) {
+  callOffAim();
   sound.unlock();
   stopTimer();
   show(screen);
@@ -581,6 +776,7 @@ function enterWinding() {
   stopTimer();
   showPanel('wind');
   dom.windFill.style.width = `${(windClicks / WIND_CLICKS) * 100}%`;
+  scene.resetView();
   if (scene.facing() !== 'dial') scene.turnTo('dial');
 }
 
@@ -689,9 +885,11 @@ function changeLanguage(code) {
     fillMenu();
     return;
   }
-  setInfo(infoPart);
+  if (game.tool === TOOLS.OILER) setOilInfo();
+  else setInfo(infoPart);
   renderProgress();
   renderTray();
+  renderOils();
   renderResult();
   renderBackButton();
   syncBenchHeight();
@@ -717,6 +915,9 @@ function wire() {
     onOrbit: (dx, dy) => scene.orbit(dx, dy),
     onPinch: (factor) => scene.zoomBy(factor),
     onPan: (dx, dy) => scene.panBy(dx, dy),
+    onHoldStart,
+    onAim,
+    onAimEnd,
   });
   attachWinding();
 
@@ -726,6 +927,15 @@ function wire() {
     scene.flip();
   });
   dom.btnTool.addEventListener('click', onToolButton);
+  dom.btnOiler.addEventListener('click', onOilerButton);
+  // A page of cards at a time, on whichever axis the tray scrolls. A mouse has no other way.
+  for (const [id, direction] of [['tray-back', -1], ['tray-on', 1]]) {
+    $(id).addEventListener('click', () => {
+      const distance = direction * PAGE_SHARE;
+      dom.tray.scrollBy({ left: distance * dom.tray.clientWidth, top: distance * dom.tray.clientHeight, behavior: 'smooth' });
+    });
+  }
+  buildOils();
   $('btn-hint').addEventListener('click', onHint);
   $('btn-view').addEventListener('click', () => openOverlay(dom.viewPanel));
   $('btn-view-reset').addEventListener('click', () => {

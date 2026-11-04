@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
+import { OIL_COLORS, OIL_POINT_BY_ID } from '../game/oil.js';
 import { PARTS, PART_BY_ID, onFace } from '../game/parts.js';
 import { BEATS_PER_SECOND, dialSeconds, trainAngles } from '../game/train.js';
 import { createMaterials } from './materials.js';
@@ -24,6 +25,13 @@ const SMOOTH_FRAME_MS = 1000 / 30;
 const BEAT_FRAME_MS = 1000 / BEATS_PER_SECOND;
 const SET_HANDS_MS = 1600;
 const HINT_MS = 2600;
+const MAX_ZOOM = 6;
+const LOUPE_ZOOM = 2.6;
+const OIL_CLEAR_PX = 16; // a tap this much nearer one point than the next clearly means it
+const OIL_FOCUS_ZOOM = 2.6; // close points stand a fingertip apart at this zoom
+const OIL_FOCUS_MS = 420;
+const OIL_MARKER_R = 0.7;
+const OIL_DROP_R = 0.5;
 const THUMB_PX = 128;
 const THUMB_TILT = 0.45;
 
@@ -65,6 +73,17 @@ export class WatchScene {
     this.watch.add(this.holder);
 
     this.objects = new Map(); // part id → fitted object
+    this.oilMarkers = new Map(); // open oil point id → marker
+    this.oilDrops = new THREE.Group();
+    this.watch.add(this.oilDrops);
+    this.oilDot = new THREE.SphereGeometry(1, 16, 12);
+    // Markers draw over everything, since a point sits among the wheels; draw() hides the far side's.
+    this.oilMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0x00c2ff, depthTest: false, transparent: true });
+    this.oilAimMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true });
+    this.oilDropMaterials = Object.fromEntries(Object.entries(OIL_COLORS).map(([oil, color]) => (
+      [oil, new THREE.MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.1 })]
+    )));
+    this.loupe = null; // {canvas, x, y} while a finger is aiming
     this.tweens = [];
     this.yaw = REST_YAW;
     this.pitch = REST_PITCH;
@@ -118,7 +137,71 @@ export class WatchScene {
 
   draw() {
     this.syncPose();
+    const side = this.facing();
+    for (const marker of this.oilMarkers.values()) marker.visible = onFace(marker.userData.point, side);
+    if (this.loupe) this.drawLoupe();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Renders the area around the finger enlarged, sharp rather than stretched, and copies it out. */
+  drawLoupe() {
+    const { canvas, context, x, y } = this.loupe;
+    const { width, height } = this;
+    const across = width / LOUPE_ZOOM;
+    const down = height / LOUPE_ZOOM;
+    const shown = canvas.clientWidth;
+    this.camera.setViewOffset(width, height, x - across / 2, y - down / 2, across, down);
+    // Only the middle gets copied, and on a phone drawing the whole frame twice would show.
+    this.renderer.setScissor((width - shown) / 2, (height - shown) / 2, shown, shown);
+    this.renderer.setScissorTest(true);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setScissorTest(false);
+    this.camera.clearViewOffset();
+    const size = canvas.width;
+    context.clearRect(0, 0, size, size);
+    const left = (this.canvas.width - size) / 2;
+    const top = (this.canvas.height - size) / 2;
+    context.drawImage(this.canvas, left, top, size, size, 0, 0, size, size);
+  }
+
+  /** Shows the area around (x, y) in this canvas until endAim. */
+  startAim(canvas, x, y) {
+    const size = Math.round(canvas.clientWidth * this.renderer.getPixelRatio());
+    canvas.width = size;
+    canvas.height = size;
+    this.loupe = { canvas, context: canvas.getContext('2d'), x, y, point: null };
+    return this.aim(x, y);
+  }
+
+  /** Moves the aim, marking the nearest oil point inside the loupe. @returns the point, or null */
+  aim(x, y) {
+    const inLoupe = this.loupe.canvas.clientWidth / 2 / LOUPE_ZOOM;
+    const points = [...this.oilMarkers.values()].map((m) => m.userData.point);
+    const [nearest] = this.partsInReach(points, x, y)
+      .filter(({ distance }) => distance <= inLoupe)
+      .sort((a, b) => a.distance - b.distance);
+    const point = nearest?.part ?? null;
+    Object.assign(this.loupe, { x, y, point });
+    this.markAimed(point);
+    this.invalidate();
+    return point;
+  }
+
+  /** Ends aiming. @returns the point it ended on, or null */
+  endAim() {
+    const point = this.loupe?.point ?? null;
+    this.loupe = null;
+    this.markAimed(null);
+    this.invalidate();
+    return point;
+  }
+
+  markAimed(point) {
+    for (const marker of this.oilMarkers.values()) {
+      const aimed = marker.userData.point === point;
+      marker.material = aimed ? this.oilAimMaterial : this.oilMarkerMaterial;
+      marker.scale.setScalar(OIL_MARKER_R * (aimed ? 1.3 : 1));
+    }
   }
 
   /** Applies the view to the matrices. Cheap: the watch's parts are not walked. */
@@ -181,8 +264,47 @@ export class WatchScene {
       const object = this.fit(part.id);
       if (part.screw && !game.tightened.has(part.id)) object.position.z = this.liftSign(part) * LOOSE_LIFT;
     }
+    this.syncOil(game);
     this.applyAngles();
     this.invalidate();
+  }
+
+  /** Shows a marker on each point waiting for oil and a drop on each oiled one. */
+  syncOil(game) {
+    this.clearOil();
+    for (const point of game.openOilPoints()) {
+      const marker = new THREE.Mesh(this.oilDot, this.oilMarkerMaterial);
+      marker.position.set(...point.pos, point.hitZ);
+      marker.scale.setScalar(OIL_MARKER_R);
+      marker.renderOrder = 10;
+      marker.userData.point = point;
+      this.watch.add(marker);
+      this.oilMarkers.set(point.id, marker);
+    }
+    for (const id of game.oiled) {
+      const point = OIL_POINT_BY_ID[id];
+      const drop = new THREE.Mesh(this.oilDot, this.oilDropMaterials[point.oil]);
+      const outwards = point.side === 'train' ? 1 : -1;
+      drop.position.set(...point.pos, point.hitZ + outwards * OIL_DROP_R * 0.5);
+      drop.scale.set(OIL_DROP_R, OIL_DROP_R, OIL_DROP_R * 0.6);
+      this.oilDrops.add(drop);
+    }
+    this.invalidate();
+  }
+
+  clearOil() {
+    for (const marker of this.oilMarkers.values()) this.watch.remove(marker);
+    this.oilMarkers.clear();
+    this.oilDrops.clear();
+  }
+
+  /** Pulses a marker, to show where the hint means. */
+  pulseOilPoint(point) {
+    const marker = this.oilMarkers.get(point.id);
+    if (!marker) return;
+    this.addTween(HINT_MS, (t) => {
+      marker.scale.setScalar(OIL_MARKER_R * (1.4 + Math.sin(t * Math.PI * 8) * 0.8 * (1 - t)));
+    });
   }
 
   clear() {
@@ -190,6 +312,8 @@ export class WatchScene {
     this.clearHint();
     this.stopRunning();
     this.tweens = [];
+    this.loupe = null;
+    this.clearOil();
     for (const object of this.objects.values()) {
       this.watch.remove(object);
       disposeObject(object);
@@ -306,7 +430,7 @@ export class WatchScene {
   }
 
   zoomBy(factor) {
-    this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 1, 6);
+    this.zoom = THREE.MathUtils.clamp(this.zoom * factor, 1, MAX_ZOOM);
     this.clampPan();
     this.invalidate();
   }
@@ -374,23 +498,55 @@ export class WatchScene {
 
   /** The nearest of these parts within its touch radius, of those on the visible side. */
   nearest(parts, x, y) {
-    this.syncPose();
-    const side = this.facing();
     let best = null;
     let bestScore = Infinity;
-    for (const part of parts) {
-      if (!onFace(part, side)) continue;
-      const target = this.slotTarget(part);
-      const distance = Math.hypot(target.x - x, target.y - y);
-      if (distance > target.radius) continue;
+    for (const { part, distance, radius } of this.partsInReach(parts, x, y)) {
       // Compare relative to size, so a screw beats the plate beneath it.
-      const score = distance / target.radius;
+      const score = distance / radius;
       if (score < bestScore) {
         best = part;
         bestScore = score;
       }
     }
     return best;
+  }
+
+  /** Those of these parts on the visible side with this point inside their touch radius. */
+  partsInReach(parts, x, y) {
+    this.syncPose();
+    const side = this.facing();
+    return parts
+      .filter((part) => onFace(part, side))
+      .map((part) => {
+        const target = this.slotTarget(part);
+        return { part, radius: target.radius, distance: Math.hypot(target.x - x, target.y - y) };
+      })
+      .filter(({ distance, radius }) => distance <= radius);
+  }
+
+  /**
+   * The oil point under a fingertip. A wrong oil costs a mistake, so when a tap falls
+   * about as near to two points, `unclear` says so instead of guessing.
+   * @returns {{point: object|null, unclear: boolean}}
+   */
+  oilPointAt(points, x, y) {
+    const [first, second] = this.partsInReach(points, x, y).sort((a, b) => a.distance - b.distance);
+    if (!first) return { point: null, unclear: false };
+    return { point: first.part, unclear: Boolean(second) && second.distance - first.distance < OIL_CLEAR_PX };
+  }
+
+  /** Moves in on a point, so that its neighbours stand apart. Closer each time it is needed. */
+  focusOn(point) {
+    this.syncPose();
+    const target = new THREE.Vector3(...point.pos, point.hitZ).applyMatrix4(this.watch.matrixWorld);
+    const fromZoom = this.zoom;
+    const toZoom = Math.min(MAX_ZOOM, Math.max(fromZoom * 1.5, OIL_FOCUS_ZOOM));
+    const fromPan = this.pan.clone();
+    this.addTween(OIL_FOCUS_MS, (t) => {
+      this.zoom = fromZoom + (toZoom - fromZoom) * t;
+      this.pan.set(fromPan.x + (target.x - fromPan.x) * t, fromPan.y + (target.y - fromPan.y) * t);
+      this.clampPan();
+    });
   }
 
   /** Canvas px → the point on the part's own working height, in movement coordinates. */

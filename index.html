@@ -32,18 +32,26 @@
   </header>
 
   <aside id="tools" hidden>
-    <button class="tool-btn" id="btn-flip" aria-label="Flip the movement" data-i18n-label="flipLabel"><span class="glyph">⟲</span><small data-i18n="flip">Flip</small></button>
+    <button class="tool-btn" id="btn-flip" aria-label="Flip the movement" data-i18n-label="flipLabel"><span class="glyph">⟲</span><small data-i18n="flipTool">Flip</small></button>
     <button class="tool-btn" id="btn-tool" aria-label="Screwdriver" data-i18n-label="screwdriver"><span class="glyph">🪛</span><small data-i18n="screwdriver">Screwdriver</small><b id="loose-badge" hidden></b></button>
+    <button class="tool-btn" id="btn-oiler" aria-label="Oiler" data-i18n-label="oiler" hidden><span class="glyph">💧</span><small data-i18n="oiler">Oiler</small><b id="oil-badge" hidden></b></button>
     <button class="tool-btn" id="btn-hint" aria-label="Hint" data-i18n-label="hint"><span class="glyph">💡</span><small data-i18n="hint">Hint</small></button>
     <button class="tool-btn" id="btn-reference" aria-label="Reference pictures" data-i18n-label="referenceLabel"><span class="glyph">📖</span><small data-i18n="reference">Reference</small></button>
     <button class="tool-btn" id="btn-view" aria-label="View" data-i18n-label="view"><span class="glyph">⌖</span><small data-i18n="view">View</small></button>
   </aside>
 
+  <canvas id="loupe" aria-hidden="true" hidden></canvas>
+
   <div id="toast" role="status" hidden></div>
 
   <section id="bench" hidden>
     <div id="info"><strong id="info-title"></strong><span id="info-text"></span></div>
-    <div id="tray" role="listbox" aria-label="Parts" data-i18n-label="parts"></div>
+    <div id="tray-box">
+      <div id="tray" role="listbox" aria-label="Parts" data-i18n-label="parts"></div>
+      <button class="tray-arrow before" id="tray-back" aria-label="Earlier parts" data-i18n-label="trayBack"></button>
+      <button class="tray-arrow after" id="tray-on" aria-label="More parts" data-i18n-label="trayOn"></button>
+    </div>
+    <div id="oils" role="group" aria-label="Oils" data-i18n-label="oils" hidden></div>
     <div id="wind" hidden>
       <div id="wind-text" data-i18n="windPrompt">Wind the watch: swipe your finger along the crown</div>
       <div id="wind-strip" role="button" aria-label="Winding crown" data-i18n-label="crown"></div>

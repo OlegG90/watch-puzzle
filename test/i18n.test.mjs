@@ -2,9 +2,10 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { OILS, OIL_POINTS } from '../src/game/oil.js';
 import { LEVELS, PARTS } from '../src/game/parts.js';
 import {
-  DEFAULT_LANGUAGE, LANGUAGES, getLanguage, partDesc, partName, setLanguage, t,
+  DEFAULT_LANGUAGE, LANGUAGES, getLanguage, oilDesc, oilName, oilPointName, oilWhy, partDesc, partName, setLanguage, t,
 } from '../src/i18n/index.js';
 
 const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -31,6 +32,13 @@ for (const code of Object.keys(LANGUAGES)) {
     const { levels, grades } = LANGUAGES[code].dictionary;
     for (const level of LEVELS) assert.ok(levels[level].name && levels[level].note, level);
     for (const stars of [1, 2, 3]) assert.ok(grades[stars], `grade ${stars}`);
+  });
+
+  test(`${code}: every oil and oil point has text`, () => {
+    setLanguage(code);
+    for (const oil of OILS) assert.ok(oilName(oil) && oilDesc(oil) && oilWhy(oil), oil);
+    for (const point of OIL_POINTS) assert.ok(oilPointName(point), point.id);
+    assert.equal(Object.keys(LANGUAGES[code].dictionary.oilPoints).length, OIL_POINTS.length);
   });
 }
 

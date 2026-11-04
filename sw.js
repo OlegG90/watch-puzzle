@@ -18,6 +18,7 @@ const FILES = [
   'src/i18n/index.js',
   'src/i18n/uk.js',
   'src/game/layout.js',
+  'src/game/oil.js',
   'src/game/parts.js',
   'src/game/state.js',
   'src/game/train.js',
