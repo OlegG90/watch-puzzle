@@ -11,7 +11,6 @@ Versions follow [Semantic Versioning](https://semver.org/). Each release has a t
 
 Released but never published to the site, because the release workflow failed.
 
-
 - Show the version and a link to the GitHub repository in the menu.
 - Show the back of the watch in the menu.
 - The View button now opens a picture of the back of the watch, with a separate button to reset the view. It used to do nothing visible unless the view had been moved.
