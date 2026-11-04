@@ -27,6 +27,7 @@ const FILES = [
   'src/render/shapes.js',
   'src/ui/audio.js',
   'src/ui/gestures.js',
+  'src/ui/scrollHint.js',
 ];
 
 self.addEventListener('install', (event) => {

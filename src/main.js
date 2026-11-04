@@ -8,6 +8,7 @@ import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
 import { attachStageGestures } from './ui/gestures.js';
+import { attachScrollHint } from './ui/scrollHint.js';
 import { VERSION } from './version.js';
 
 const SAVE_KEY = 'godynnykar.save.v1';
@@ -67,6 +68,7 @@ let toastHandle = null;
 let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
 let infoPart = null; // what the info panel describes; null shows the instructions
+let updateTrayHint = () => {};
 
 // ---- Screens
 
@@ -239,7 +241,10 @@ function renderTray() {
   });
   // Touching a card's neighbours would lose an active drag or the scroll position.
   const same = cards.length === dom.tray.children.length && cards.every((c, i) => c === dom.tray.children[i]);
-  if (!same) dom.tray.replaceChildren(...cards);
+  if (!same) {
+    dom.tray.replaceChildren(...cards);
+    updateTrayHint();
+  }
 }
 
 function makeCard(stack) {
@@ -713,6 +718,7 @@ function wire() {
     onPan: (dx, dy) => scene.panBy(dx, dy),
   });
   attachWinding();
+  updateTrayHint = attachScrollHint(dom.tray);
 
   $('btn-menu').addEventListener('click', () => history.back());
   dom.btnFlip.addEventListener('click', () => {
