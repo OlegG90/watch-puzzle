@@ -55,6 +55,7 @@ const store = {
 };
 
 const sound = new Sound(store.read(SOUND_KEY) !== false);
+const updateTrayHint = attachScrollHint(dom.tray);
 
 const OVERLAYS = [dom.reference, dom.viewPanel];
 
@@ -68,7 +69,6 @@ let toastHandle = null;
 let windClicks = 0;
 let heldCard = false; // one part at a time: a second finger on the tray is ignored
 let infoPart = null; // what the info panel describes; null shows the instructions
-let updateTrayHint = () => {};
 
 // ---- Screens
 
@@ -718,7 +718,6 @@ function wire() {
     onPan: (dx, dy) => scene.panBy(dx, dy),
   });
   attachWinding();
-  updateTrayHint = attachScrollHint(dom.tray);
 
   $('btn-menu').addEventListener('click', () => history.back());
   dom.btnFlip.addEventListener('click', () => {

@@ -161,6 +161,7 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
   /* The scrollbar is hidden, so an edge with more parts beyond it fades out. A mask
      changes only how the cards look: they can still be tapped and dragged through it. */
   --fade-dir: to right;
+  --fade-size: 44px;
   --fade-before: 0px;
   --fade-after: 0px;
   --fade-mask: linear-gradient(
@@ -173,8 +174,8 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
   -webkit-mask-image: var(--fade-mask);
   mask-image: var(--fade-mask);
 }
-#tray.more-before { --fade-before: 44px; }
-#tray.more-after { --fade-after: 44px; }
+#tray.more-before { --fade-before: var(--fade-size); }
+#tray.more-after { --fade-after: var(--fade-size); }
 #tray::-webkit-scrollbar { display: none; }
 
 .card {
