@@ -158,7 +158,24 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
   scrollbar-width: none;
   /* The browser scrolls sideways; an upward pull reaches us and picks the part up. */
   touch-action: pan-x;
+  /* The scrollbar is hidden, so an edge with more parts beyond it fades out. A mask
+     changes only how the cards look: they can still be tapped and dragged through it. */
+  --fade-dir: to right;
+  --fade-size: 44px;
+  --fade-before: 0px;
+  --fade-after: 0px;
+  --fade-mask: linear-gradient(
+    var(--fade-dir),
+    transparent,
+    #000 var(--fade-before),
+    #000 calc(100% - var(--fade-after)),
+    transparent
+  );
+  -webkit-mask-image: var(--fade-mask);
+  mask-image: var(--fade-mask);
 }
+#tray.more-before { --fade-before: var(--fade-size); }
+#tray.more-after { --fade-after: var(--fade-size); }
 #tray::-webkit-scrollbar { display: none; }
 
 .card {
@@ -328,6 +345,7 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
     align-content: flex-start;
     overflow: hidden auto;
     touch-action: pan-y;
+    --fade-dir: to bottom;
   }
   .card { height: 96px; touch-action: pan-y; }
 }

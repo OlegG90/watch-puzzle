@@ -8,6 +8,7 @@ import { Game, MAX_STARS, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
 import { attachStageGestures } from './ui/gestures.js';
+import { attachScrollHint } from './ui/scrollHint.js';
 import { VERSION } from './version.js';
 
 const SAVE_KEY = 'godynnykar.save.v1';
@@ -54,6 +55,7 @@ const store = {
 };
 
 const sound = new Sound(store.read(SOUND_KEY) !== false);
+const updateTrayHint = attachScrollHint(dom.tray);
 
 const OVERLAYS = [dom.reference, dom.viewPanel];
 
@@ -239,7 +241,10 @@ function renderTray() {
   });
   // Touching a card's neighbours would lose an active drag or the scroll position.
   const same = cards.length === dom.tray.children.length && cards.every((c, i) => c === dom.tray.children[i]);
-  if (!same) dom.tray.replaceChildren(...cards);
+  if (!same) {
+    dom.tray.replaceChildren(...cards);
+    updateTrayHint();
+  }
 }
 
 function makeCard(stack) {
