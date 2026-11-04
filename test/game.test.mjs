@@ -211,7 +211,8 @@ test('teeth stay engaged at every mesh as the train turns', () => {
   }
 });
 
-test('the balance rests when stopped and swings when running', () => {
-  assert.equal(trainAngles(10.1, false).balance, 0);
-  assert.notEqual(trainAngles(10.1, true).balance, 0);
+test('the balance rests at twelve o\'clock, where assembly happens, and swings once running', () => {
+  assert.equal(trainAngles(0).balance, 0);
+  assert.equal(trainAngles(0).pallet, 0);
+  assert.notEqual(trainAngles(10.1).balance, 0);
 });

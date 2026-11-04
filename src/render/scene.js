@@ -4,8 +4,8 @@
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
-import { PARTS, PART_BY_ID } from '../game/parts.js';
-import { dialSeconds, trainAngles } from '../game/train.js';
+import { PARTS, PART_BY_ID, onFace } from '../game/parts.js';
+import { BEATS_PER_SECOND, dialSeconds, trainAngles } from '../game/train.js';
 import { createMaterials } from './materials.js';
 import { SPIN, buildPart } from './parts3d.js';
 import { ring } from './shapes.js';
@@ -19,8 +19,11 @@ const DROP_LIFT = 5;
 // and the bow and crown up the screen.
 const FIT_WIDTH = 25;
 const FIT_HEIGHT = 36;
-const RUN_FRAME_MS = 1000 / 30;
+const SMOOTH_FRAME_MS = 1000 / 30;
+const BEAT_FRAME_MS = 1000 / BEATS_PER_SECOND;
 const SET_HANDS_MS = 1600;
+const HINT_MS = 2600;
+const THUMB_PX = 128;
 
 const easeOut = (t) => 1 - (1 - t) ** 3;
 
@@ -33,6 +36,8 @@ export class WatchScene {
     this.renderer.toneMappingExposure = 0.85;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Redrawing shadows is the priciest thing here, so frame() decides when it happens.
+    this.renderer.shadowMap.autoUpdate = false;
 
     this.scene = new THREE.Scene();
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -91,9 +96,13 @@ export class WatchScene {
   frame(now) {
     this.loopHandle = null;
     this.stepTweens(now);
+    if (this.needsRender) this.renderer.shadowMap.needsUpdate = true;
     if (this.running) {
       this.applyAngles(now);
-      this.needsRender = this.needsRender || now - this.lastFrame >= RUN_FRAME_MS;
+      // With the back on, only the hands show, and they move once per beat.
+      const smooth = this.backOpen || now - this.runStart < SET_HANDS_MS;
+      const interval = smooth ? SMOOTH_FRAME_MS : BEAT_FRAME_MS;
+      this.needsRender = this.needsRender || now - this.lastFrame >= interval;
     }
     if (this.needsRender) {
       this.lastFrame = now;
@@ -106,15 +115,17 @@ export class WatchScene {
   }
 
   draw() {
-    // Shadows fall differently as the watch turns, even while they are rationed.
-    if (this.yaw !== this.shadowYaw || this.pitch !== this.shadowPitch) {
-      this.shadowYaw = this.yaw;
-      this.shadowPitch = this.pitch;
-      this.renderer.shadowMap.needsUpdate = true;
-    }
-    this.watch.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
-    this.camera.position.set(this.pan.x, this.pan.y, this.baseDistance / this.zoom);
+    this.syncPose();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Applies the view to the matrices. Cheap: the watch's parts are not walked. */
+  syncPose() {
+    this.watch.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
+    this.watch.updateMatrix();
+    this.watch.matrixWorld.copy(this.watch.matrix);
+    this.camera.position.set(this.pan.x, this.pan.y, this.baseDistance / this.zoom);
+    this.camera.updateMatrixWorld();
   }
 
   resize() {
@@ -205,17 +216,12 @@ export class WatchScene {
   }
 
   /** Lowers a part into place, optionally leaving a screw standing proud. */
-  install(id, { loose = false, animate = true } = {}) {
+  install(id, { loose = false } = {}) {
     const part = PART_BY_ID[id];
     const object = this.fit(id);
     this.applyAngles();
     const sign = this.liftSign(part);
     const rest = loose ? sign * LOOSE_LIFT : 0;
-    if (!animate) {
-      object.position.z = rest;
-      this.invalidate();
-      return;
-    }
     const from = sign * DROP_LIFT;
     object.position.z = from;
     this.addTween(240, (t) => {
@@ -241,8 +247,8 @@ export class WatchScene {
       // After winding, the hands sweep round from where they stood to the true time.
       const t = Math.min(1, (now - this.runStart) / SET_HANDS_MS);
       const seconds = t < 1 ? easeOut(t) * real : real;
-      angles = trainAngles(seconds, true);
-      const beat = Math.floor(real * 5);
+      angles = trainAngles(seconds);
+      const beat = Math.floor(real * BEATS_PER_SECOND);
       if (t >= 1 && beat !== this.lastBeat) {
         this.lastBeat = beat;
         this.onBeat?.();
@@ -254,7 +260,7 @@ export class WatchScene {
         this.renderer.shadowMap.needsUpdate = true;
       }
     } else {
-      angles = trainAngles(0, false);
+      angles = trainAngles(0);
     }
     for (const [id, object] of this.objects) {
       const arbor = SPIN[id];
@@ -265,32 +271,25 @@ export class WatchScene {
   startRunning({ sweep = true } = {}) {
     this.running = true;
     this.runStart = sweep ? performance.now() : -Infinity;
-    // Redrawing shadows every frame is the priciest thing here, and hardly shows.
-    this.renderer.shadowMap.autoUpdate = false;
-    this.renderer.shadowMap.needsUpdate = true;
     this.invalidate();
   }
 
   stopRunning() {
     this.running = false;
-    this.renderer.shadowMap.autoUpdate = true;
   }
 
   setBackOpen(open) {
     this.backOpen = open;
     const back = this.objects.get('caseBack');
     if (back) back.visible = !open;
-    this.renderer.shadowMap.needsUpdate = true;
     this.invalidate();
   }
 
   // ---- The view
 
   facing() {
-    this.watch.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
-    this.watch.updateMatrixWorld();
-    const axis = new THREE.Vector3(0, 0, 1).transformDirection(this.watch.matrixWorld);
-    return axis.z >= 0 ? 'train' : 'dial';
+    // Pitch stays within a right angle, so yaw alone decides which face is up.
+    return Math.cos(this.yaw) >= 0 ? 'train' : 'dial';
   }
 
   orbit(dx, dy) {
@@ -354,10 +353,7 @@ export class WatchScene {
 
   /** Where a local point appears on screen, in px relative to the canvas. */
   toScreen(x, y, z) {
-    this.watch.rotation.set(this.pitch, this.yaw, 0, 'XYZ');
-    this.camera.position.set(this.pan.x, this.pan.y, this.baseDistance / this.zoom);
-    this.scene.updateMatrixWorld();
-    this.camera.updateMatrixWorld();
+    this.syncPose();
     const v = new THREE.Vector3(x, y, z).applyMatrix4(this.watch.matrixWorld).project(this.camera);
     return { x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height };
   }
@@ -371,11 +367,12 @@ export class WatchScene {
 
   /** The nearest of these parts within its touch radius, of those on the visible side. */
   nearest(parts, x, y) {
+    this.syncPose();
     const side = this.facing();
     let best = null;
     let bestScore = Infinity;
     for (const part of parts) {
-      if (part.side !== 'any' && part.side !== side) continue;
+      if (!onFace(part, side)) continue;
       const target = this.slotTarget(part);
       const distance = Math.hypot(target.x - x, target.y - y);
       if (distance > target.radius) continue;
@@ -392,7 +389,7 @@ export class WatchScene {
   /** Canvas px → the point on the part's own working height, in movement coordinates. */
   toLocal(x, y, z) {
     const ndc = new THREE.Vector2((x / this.width) * 2 - 1, 1 - (y / this.height) * 2);
-    this.toScreen(0, 0, 0); // brings matrices up to date
+    this.syncPose();
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(ndc, this.camera);
     const inverse = this.watch.matrixWorld.clone().invert();
@@ -453,7 +450,7 @@ export class WatchScene {
   // ---- Hints
 
   /** A pulsing translucent copy of the part, in the place it belongs. */
-  showHint(part, durationMs = 2600) {
+  showHint(part) {
     this.clearHint();
     const ghost = this.makeObject(part.id);
     ghost.position.set(part.pos[0], part.pos[1], this.liftSign(part) * 0.6);
@@ -469,7 +466,7 @@ export class WatchScene {
     });
     this.watch.add(ghost);
     this.hintGhost = ghost;
-    this.addTween(durationMs, (t) => {
+    this.addTween(HINT_MS, (t) => {
       const pulse = 0.5 + 0.35 * Math.sin(t * Math.PI * 8);
       ghost.traverse((m) => {
         if (m.isMesh) m.material.opacity = pulse;
@@ -490,7 +487,7 @@ export class WatchScene {
   // ---- Tray pictures
 
   /** Renders one picture per part. Call while the canvas is hidden behind the splash. */
-  thumbnails(ids, size = 128) {
+  thumbnails(ids) {
     const stage = new THREE.Scene();
     stage.environment = this.scene.environment;
     stage.environmentIntensity = 0.9; // brighter than the bench: pictures sit on a dark card
@@ -502,7 +499,7 @@ export class WatchScene {
     this.renderer.shadowMap.enabled = false;
     const ratio = this.renderer.getPixelRatio();
     this.renderer.setPixelRatio(1);
-    this.renderer.setSize(size, size, false);
+    this.renderer.setSize(THUMB_PX, THUMB_PX, false);
 
     const pictures = new Map();
     for (const id of ids) {

@@ -17,7 +17,7 @@ export class Game {
     this.seed = saved?.seed ?? Math.floor(Math.random() * 2 ** 31);
     this.tool = TOOLS.TWEEZERS;
     // Only the master fits the small parts by hand.
-    this.playable = level === 'master' ? PARTS : PARTS.filter((p) => p.basic);
+    this.playable = PARTS.filter((p) => this.isPlayable(p));
   }
 
   toJSON() {
@@ -96,7 +96,7 @@ export class Game {
       return { ok: false, reason: 'blocked', missing: this.#playableBlockers(part) };
     }
     if (part.tight) {
-      const loose = this.looseScrews(part.tight === 'all' ? null : part.tight);
+      const loose = this.#looseUnder(part);
       if (loose.length) {
         this.mistakes += 1;
         return { ok: false, reason: 'loose', loose };
@@ -140,9 +140,7 @@ export class Game {
     const blocker = this.playable.find((p) => !this.installed.has(p.id) && p.tight);
     const next = this.playable.find((p) => !this.installed.has(p.id) && this.canFit(p));
     if (loose.length && (!next || next === blocker)) return { type: 'tighten', part: loose[0] };
-    if (next) return { type: 'place', part: next };
-    if (loose.length) return { type: 'tighten', part: loose[0] };
-    return null;
+    return next ? { type: 'place', part: next } : null;
   }
 
   /** What the player must fit first: small parts that fit themselves are traced through. */
@@ -160,8 +158,12 @@ export class Game {
 
   canFit(part) {
     if (this.missingFor(part).length) return false;
-    if (!part.tight) return true;
-    return this.looseScrews(part.tight === 'all' ? null : part.tight).length === 0;
+    return !part.tight || this.#looseUnder(part).length === 0;
+  }
+
+  /** Loose screws this cover would hide. */
+  #looseUnder(cover) {
+    return this.looseScrews(cover.tight === 'all' ? null : cover.tight);
   }
 
   /** In Apprentice, anything not played by hand drops in once it is able to. */

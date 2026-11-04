@@ -1,5 +1,5 @@
 // Touch handling for the watch: one finger turns it, two pinch and pan, and a
-// quick still touch is a tap. A tap and a turn can never be confused, however
+// still touch is a tap, however long it lasts. A tap and a turn can never be confused, however
 // shaky the hand, because only movement past TAP_SLOP counts as turning.
 
 const TAP_SLOP = 10; // px
@@ -54,7 +54,7 @@ export function attachStageGestures(el, handlers) {
     }
     if (gesture === 'orbit') {
       handlers.onOrbit(now.x - previous.x, now.y - previous.y);
-    } else if (gesture === 'pinch' && pointers.size >= 2) {
+    } else if (gesture === 'pinch') {
       const s = spread();
       const m = midpoint();
       if (lastSpread > 0) handlers.onPinch(s / lastSpread);
@@ -72,8 +72,7 @@ export function attachStageGestures(el, handlers) {
       handlers.onTap(at.x, at.y);
     }
     // Lifting one finger of a pinch must not turn into a sudden orbit.
-    if (pointers.size === 0) gesture = null;
-    else if (pointers.size === 1) gesture = 'settling';
+    if (pointers.size < 2) gesture = null;
     else {
       // Still pinching, with a different pair: measure afresh, or the view jumps.
       lastSpread = spread();

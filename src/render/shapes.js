@@ -40,27 +40,29 @@ export function disc(radius, zFrom, zTo, material, segments = 64) {
   return extrude(shape, zFrom, zTo, material, segments);
 }
 
+/** A closed outline through [x, y] points. */
+function polygon(points) {
+  return new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+}
+
 /** Toothed outline at this pitch radius. A tooth is centred on angle 0. */
-function teethOutline(shape, teeth, pitchRadius) {
+function teethOutline(teeth, pitchRadius) {
   const depth = Math.min(pitchRadius * 0.14, (TAU * pitchRadius) / teeth * 0.75);
   const rTip = pitchRadius + depth * 0.5;
   const rRoot = pitchRadius - depth * 0.6;
   const pitch = TAU / teeth;
   const at = (r, a) => [r * Math.cos(a), r * Math.sin(a)];
+  const points = [];
   for (let i = 0; i < teeth; i += 1) {
     const a = i * pitch;
-    const points = [
+    points.push(
       at(rRoot, a - pitch * 0.32),
       at(rTip, a - pitch * 0.16),
       at(rTip, a + pitch * 0.16),
       at(rRoot, a + pitch * 0.32),
-    ];
-    for (const [x, y] of points) {
-      if (i === 0 && x === points[0][0] && y === points[0][1]) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
-    }
+    );
   }
-  shape.closePath();
+  return polygon(points);
 }
 
 /** Curved windows between spokes, the crossing of a real watch wheel. */
@@ -79,30 +81,21 @@ function crossing(shape, spokes, rIn, rOut) {
 
 /** A flat wheel. spokes=0 leaves it solid. */
 export function gear(teeth, pitchRadius, zFrom, zTo, material, spokes = 4) {
-  const shape = new THREE.Shape();
-  teethOutline(shape, teeth, pitchRadius);
+  const shape = teethOutline(teeth, pitchRadius);
   if (spokes > 0) crossing(shape, spokes, pitchRadius * 0.28, pitchRadius * 0.78);
   return extrude(shape, zFrom, zTo, material, 6);
 }
 
 /** The sloping, hooked teeth of an escape wheel. */
 export function escapeGear(teeth, radius, zFrom, zTo, material) {
-  const shape = new THREE.Shape();
   const pitch = TAU / teeth;
+  const at = (r, a) => [r * Math.cos(a), r * Math.sin(a)];
+  const points = [];
   for (let i = 0; i < teeth; i += 1) {
     const a = i * pitch;
-    const tip = [radius * Math.cos(a), radius * Math.sin(a)];
-    const r = radius * 0.72;
-    const back = a - pitch * 0.72;
-    const heel = a - pitch * 0.15;
-    const x0 = r * Math.cos(back);
-    const y0 = r * Math.sin(back);
-    if (i === 0) shape.moveTo(x0, y0);
-    else shape.lineTo(x0, y0);
-    shape.lineTo(tip[0], tip[1]);
-    shape.lineTo(r * Math.cos(heel), r * Math.sin(heel));
+    points.push(at(radius * 0.72, a - pitch * 0.72), at(radius, a), at(radius * 0.72, a - pitch * 0.15));
   }
-  shape.closePath();
+  const shape = polygon(points);
   crossing(shape, 4, radius * 0.22, radius * 0.6);
   return extrude(shape, zFrom, zTo, material, 6);
 }
@@ -152,11 +145,7 @@ export function spiral(rIn, rOut, turns, width, zFrom, zTo, material) {
     outer.push([(r + width / 2) * Math.cos(a), (r + width / 2) * Math.sin(a)]);
     inner.push([(r - width / 2) * Math.cos(a), (r - width / 2) * Math.sin(a)]);
   }
-  const shape = new THREE.Shape();
-  outer.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
-  inner.reverse().forEach(([x, y]) => shape.lineTo(x, y));
-  shape.closePath();
-  return extrude(shape, zFrom, zTo, material, 1);
+  return extrude(polygon([...outer, ...inner.reverse()]), zFrom, zTo, material, 1);
 }
 
 /** A solid of revolution about z, from [radius, height] pairs running outward-up. */
@@ -169,8 +158,5 @@ export function turned(profile, material, segments = 96) {
 
 /** A flat outline through points, with a thin pointed shape for a watch hand. */
 export function flatShape(points, zFrom, zTo, material) {
-  const shape = new THREE.Shape();
-  points.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
-  shape.closePath();
-  return extrude(shape, zFrom, zTo, material, 4);
+  return extrude(polygon(points), zFrom, zTo, material, 4);
 }

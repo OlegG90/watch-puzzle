@@ -7,7 +7,7 @@ import { GEARS, POS } from '../game/layout.js';
 import { PART_BY_ID } from '../game/parts.js';
 import { createDialTexture } from './materials.js';
 import {
-  capsule, disc, escapeGear, extrude, flatShape, gear, jewel, post, ring, screw, spiral, turned,
+  capsule, disc, escapeGear, flatShape, gear, jewel, post, ring, screw, spiral, turned,
 } from './shapes.js';
 
 const group = (...children) => {
@@ -23,22 +23,19 @@ const JEWEL_R = 0.42;
 
 /** A wheel with its pinion below or above and an axle running between pivots. */
 function wheel(mats, { wheelZ, wheelGear, pinionGear, pinionZ, axle, spokes = 4 }) {
-  const g = group(
+  return group(
     gear(GEARS[wheelGear].teeth, GEARS[wheelGear].r, wheelZ, wheelZ + 0.28, mats.wheel, spokes),
     post(0, 0, axle[0], axle[1], 0.28, mats.steel, 12),
     post(0, 0, wheelZ - 0.05, wheelZ + 0.34, GEARS[wheelGear].r * 0.16, mats.brass, 16),
+    gear(GEARS[pinionGear].teeth, GEARS[pinionGear].r, pinionZ[0], pinionZ[1], mats.steel, 0),
   );
-  if (pinionGear) {
-    g.add(gear(GEARS[pinionGear].teeth, GEARS[pinionGear].r, pinionZ[0], pinionZ[1], mats.steel, 0));
-  }
-  return g;
 }
 
 /** A bridge: rounded arms in plan, with posts standing it on the plate. */
-function bridge(mats, origin, arms, { z, posts = [], zFloor = 0, mat = mats.bridge }) {
+function bridge(mats, origin, arms, { z, posts = [], zFloor = 0 }) {
   const g = new THREE.Group();
   for (const [a, b, width] of arms) {
-    g.add(capsule(rel(a, origin), rel(b, origin), width, z[0], z[1], mat));
+    g.add(capsule(rel(a, origin), rel(b, origin), width, z[0], z[1], mats.bridge));
   }
   // Posts run from the bridge down to the plate, on whichever side it sits.
   const [postFrom, postTo] = z[0] >= zFloor ? [zFloor, z[0]] : [z[1], zFloor];
@@ -47,10 +44,6 @@ function bridge(mats, origin, arms, { z, posts = [], zFloor = 0, mat = mats.brid
     g.add(post(x, y, postFrom, postTo, 1.1, mats.brass, 14));
   }
   return g;
-}
-
-function screwPart(mats, z, radius, facing = 1) {
-  return screw(z, radius, mats, facing);
 }
 
 const SCREW_R = { 'screw-bridge': 0.95, 'screw-wheel': 1.2, 'screw-small': 0.65, 'screw-dial': 0.75 };
@@ -254,8 +247,8 @@ const BUILDERS = {
   },
   capJewel: (mats) => group(post(0, 0, 8.6, 8.75, 1.35, mats.steel), post(0, 0, 8.75, 8.88, 0.6, mats.ruby)),
 
-  windingPinion: (mats) => horizontalGear(mats.steel, 1.3, 1.6),
-  clutch: (mats) => horizontalGear(mats.steel, 1.2, 2.6),
+  windingPinion: (mats) => stemBarrel(mats.steel, 1.3, 1.6),
+  clutch: (mats) => stemBarrel(mats.steel, 1.2, 2.6),
   stem(mats) {
     const axis = new THREE.CylinderGeometry(0.42, 0.42, 17, 12);
     axis.translate(0, 1.5, -3); // from y=8 inside the plate to y=25 inside the crown
@@ -368,8 +361,8 @@ const BUILDERS = {
   },
 };
 
-/** A small toothed barrel that runs along y, for the winding stem. */
-function horizontalGear(material, radius, length) {
+/** A short barrel threaded on the winding stem, along y. */
+function stemBarrel(material, radius, length) {
   const geometry = new THREE.CylinderGeometry(radius, radius, length, 10);
   geometry.translate(0, 0, -3);
   return new THREE.Mesh(geometry, material);
@@ -383,29 +376,16 @@ function hand(material, z, length, width, moon) {
     z + 0.12,
     material,
   );
-  const shape = new THREE.Shape();
-  shape.absarc(0, length * 0.68, moon, 0, Math.PI * 2, false);
-  const hole = new THREE.Path();
-  hole.absarc(0, length * 0.68, moon * 0.6, 0, Math.PI * 2, true);
-  shape.holes.push(hole);
-  const face = extrude(shape, z, z + 0.12, material, 16);
+  const face = ring(moon, moon * 0.6, z, z + 0.12, material, 24);
+  face.position.y = length * 0.68;
   return group(shaft, face, post(0, 0, z, z + 0.14, 1.15, material));
 }
 
 /** Builds a part at its own origin. Screws are built by kind and seat. */
 export function buildPart(id, mats) {
   const part = PART_BY_ID[id];
-  const root = new THREE.Group();
-  let content;
-  if (part.screw) {
-    const z = SCREW_SEATS[id];
-    content = screwPart(mats, z, SCREW_R[part.kind], part.side === 'dial' ? -1 : 1);
-  } else {
-    content = BUILDERS[id](mats);
-  }
-  root.add(content);
-  root.name = id;
-  return root;
+  if (!part.screw) return BUILDERS[id](mats);
+  return screw(SCREW_SEATS[id], SCREW_R[part.kind], mats, part.side === 'dial' ? -1 : 1);
 }
 
 /** Which arbor of the train turns a part when the watch runs, if any. */

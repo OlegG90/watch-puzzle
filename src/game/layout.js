@@ -2,7 +2,7 @@
 // train side (the bridges); the dial side is at -z. Every meshing pair sits at
 // exactly the sum of its pitch radii, so the gears really do engage.
 
-export const polar = ([x, y], dist, deg) => {
+const polar = ([x, y], dist, deg) => {
   const a = (deg * Math.PI) / 180;
   return [x + dist * Math.cos(a), y + dist * Math.sin(a)];
 };

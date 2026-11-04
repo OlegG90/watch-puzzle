@@ -224,7 +224,7 @@ export const PARTS = [
   }),
 
   // Dial and hands
-  part('dial', 'Циферблат', 'dial', O, -5.3, ['hour', 'stem'], {
+  part('dial', 'Циферблат', 'dial', O, -5.3, [], {
     basic: true,
     hitR: 18,
     tight: 'dial',
@@ -249,7 +249,7 @@ export const PARTS = [
   }),
 
   // The case
-  part('case', 'Корпус', 'any', O, 0, ['minuteHand', 'secondsHand', 'cock', 'ratchet', 'crownWheel'], {
+  part('case', 'Корпус', 'any', O, 0, [], {
     basic: true,
     hitR: 19,
     tight: 'all',
@@ -267,14 +267,15 @@ export const PARTS = [
   }),
 ];
 
-// Covers go on last: the dial hides its whole side, and the case the whole movement.
-const coverRequires = (id, isBeneath) => {
-  const cover = PARTS.findIndex((p) => p.id === id);
-  const beneath = PARTS.slice(0, cover).filter(isBeneath).map((p) => p.id);
-  PARTS[cover].requires = [...new Set([...PARTS[cover].requires, ...beneath])];
-};
-coverRequires('dial', (p) => p.side === 'dial');
-coverRequires('case', () => true);
+// Covers go on last: each needs everything listed before it that it will hide.
+PARTS.forEach((cover, index) => {
+  if (!cover.tight) return;
+  const hidden = PARTS.slice(0, index).filter((p) => cover.tight === 'all' || p.side === cover.tight);
+  cover.requires = hidden.map((p) => p.id);
+});
+
+/** Whether this part is fitted from the given face of the movement. */
+export const onFace = (part, side) => part.side === 'any' || part.side === side;
 
 export const PART_BY_ID = Object.fromEntries(PARTS.map((p) => [p.id, p]));
 

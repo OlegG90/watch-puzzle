@@ -5,7 +5,7 @@
 import { GEARS, MESHES } from './layout.js';
 
 const TAU = Math.PI * 2;
-const BEATS_PER_SECOND = 5; // 18 000 vibrations per hour
+export const BEATS_PER_SECOND = 5; // 18 000 vibrations per hour
 const BALANCE_HZ = 2.5;
 const BALANCE_AMPLITUDE = 3.6; // rad, roughly 200 degrees either way
 const PALLET_THROW = 0.12;
@@ -38,22 +38,20 @@ export function meshPhase(driverTeeth, drivenTeeth, driverPos, drivenPos, driver
 
 /** A fixed phase per arbor, chosen once so all meshes engage for the whole run. */
 export const PHASES = (() => {
-  const phases = { barrel: 0 };
+  const phases = { barrel: 0, cannon: 0 };
+  // In the same order as MESHES.
   const chain = [
     ['barrel', 'centre', 0],
     ['centre', 'third', 1],
     ['third', 'fourth', 2],
     ['fourth', 'escape', 3],
+    ['cannon', 'minute', 4],
+    ['minute', 'hour', 5],
   ];
   for (const [driver, driven, meshIndex] of chain) {
     const [a, b, posA, posB] = MESHES[meshIndex];
     phases[driven] = meshPhase(GEARS[a].teeth, GEARS[b].teeth, posA, posB, phases[driver]);
   }
-  phases.cannon = 0;
-  const [, , cannonPos, minutePos] = MESHES[4];
-  phases.minute = meshPhase(GEARS.cannon.teeth, GEARS.minute.teeth, cannonPos, minutePos, 0);
-  const [, , minutePos2, hourPos] = MESHES[5];
-  phases.hour = meshPhase(GEARS.minutePinion.teeth, GEARS.hour.teeth, minutePos2, hourPos, phases.minute);
   return phases;
 })();
 
@@ -65,22 +63,21 @@ export function dialSeconds(date) {
 /**
  * All moving angles at a moment.
  * @param {number} seconds seconds since 12:00
- * @param {boolean} running a stopped watch rests: balance centred, no beat
  */
-export function trainAngles(seconds, running = true) {
+export function trainAngles(seconds) {
   // The train only moves when the escapement releases it, hence the steps.
-  const stepped = running ? Math.floor(seconds * BEATS_PER_SECOND) / BEATS_PER_SECOND : seconds;
+  const stepped = Math.floor(seconds * BEATS_PER_SECOND) / BEATS_PER_SECOND;
   const centreTurn = (stepped / 3600) * TAU;
   const angles = {};
   for (const [arbor, r] of Object.entries(CENTRE_RATIOS)) {
-    angles[arbor] = (PHASES[arbor] ?? 0) + r * centreTurn;
+    angles[arbor] = PHASES[arbor] + r * centreTurn;
   }
   const hourTurn = (stepped / 43200) * TAU;
   angles.hourHand = hourTurn;
   angles.minuteHand = centreTurn;
   angles.secondsHand = ((stepped % 60) / 60) * TAU;
   const swing = Math.sin(seconds * BALANCE_HZ * TAU);
-  angles.balance = running ? BALANCE_AMPLITUDE * swing : 0;
-  angles.pallet = running ? PALLET_THROW * Math.sign(swing) : 0;
+  angles.balance = BALANCE_AMPLITUDE * swing;
+  angles.pallet = PALLET_THROW * Math.sign(swing);
   return angles;
 }

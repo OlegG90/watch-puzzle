@@ -1,6 +1,6 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
-import { LEVELS, PARTS } from './game/parts.js';
+import { LEVELS, PARTS, onFace } from './game/parts.js';
 import { Game, TOOLS, grade } from './game/state.js';
 import { WatchScene } from './render/scene.js';
 import { Sound, buzz } from './ui/audio.js';
@@ -41,13 +41,6 @@ const store = {
       // Nothing to do: progress just will not survive a reload.
     }
   },
-  remove(key) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // As above.
-    }
-  },
 };
 
 const sound = new Sound(store.read(SOUND_KEY) !== false);
@@ -72,6 +65,16 @@ function setPlaying(playing) {
   document.body.classList.toggle('playing', playing);
   dom.hud.hidden = !playing;
   dom.bench.hidden = !playing;
+  syncBenchHeight();
+}
+
+/** Which of the bench's three panels is showing. */
+function showPanel(panel) {
+  dom.tray.hidden = panel !== 'tray';
+  dom.info.hidden = panel !== 'tray';
+  dom.wind.hidden = panel !== 'wind';
+  dom.admire.hidden = panel !== 'admire';
+  dom.tools.hidden = panel !== 'tray';
   syncBenchHeight();
 }
 
@@ -140,7 +143,6 @@ function startGame(level, saved = null) {
     enterAdmire({ sweep: false });
     return;
   }
-  dom.tools.hidden = false;
   startTimer();
   refresh();
   setInfo(null);
@@ -189,20 +191,13 @@ function refresh() {
   const loose = game.looseScrews().length;
   dom.looseBadge.hidden = loose === 0;
   dom.looseBadge.textContent = loose;
-  dom.btnTool.classList.toggle('active', game.tool === TOOLS.SCREWDRIVER);
   dom.btnTool.classList.toggle('nudge', loose > 0 && game.tool !== TOOLS.SCREWDRIVER);
   if (loose === 0 && game.tool === TOOLS.SCREWDRIVER) setTool(TOOLS.TWEEZERS);
 
   renderTray();
 
   if (game.assembled) enterWinding();
-  else {
-    dom.wind.hidden = true;
-    dom.admire.hidden = true;
-    dom.tray.hidden = false;
-    dom.info.hidden = false;
-  }
-  syncBenchHeight();
+  else showPanel('tray');
   save();
 }
 
@@ -303,7 +298,6 @@ function pullsOutOfTray(ev, start) {
 function toggleSelect(kind) {
   selectedKind = selectedKind === kind ? null : kind;
   setTool(TOOLS.TWEEZERS);
-  clearPointed();
   renderTray();
   setInfo(selectedKind ? game.openSlots(kind)[0] : null);
 }
@@ -321,10 +315,6 @@ function setInfo(part) {
 function setTool(tool) {
   game.tool = tool;
   dom.btnTool.classList.toggle('active', tool === TOOLS.SCREWDRIVER);
-}
-
-function clearPointed() {
-  for (const c of dom.tray.querySelectorAll('.pointed')) c.classList.remove('pointed');
 }
 
 // ---- Toasts
@@ -356,7 +346,6 @@ function dragPoint(ev) {
 function beginDrag(kind, card) {
   selectedKind = kind;
   setTool(TOOLS.TWEEZERS);
-  clearPointed();
   renderTray();
   card.classList.add('lifted');
   const slots = game.openSlots(kind);
@@ -397,7 +386,7 @@ function attemptPlace(kind, x, y) {
   }
   // Every slot is on the other face: the player's aim may be right, so no penalty.
   const side = scene.facing();
-  if (slots.every((s) => s.side !== 'any' && s.side !== side)) {
+  if (!slots.some((s) => onFace(s, side))) {
     toast('Ця деталь встановлюється з іншого боку. Переверніть механізм.');
     dom.btnFlip.classList.add('nudge');
     sound.wrong();
@@ -445,8 +434,7 @@ function onStageTap(x, y) {
   if (game.tool === TOOLS.SCREWDRIVER) {
     const screw = scene.nearest(game.looseScrews(), x, y);
     if (!screw) {
-      const onThisFace = game.looseScrews().some((p) => p.side === scene.facing());
-      toast(onThisFace ? 'Торкніться незатягнутого гвинта. Він трохи стирчить над мостом.' : 'Незатягнуті гвинти на іншому боці. Переверніть механізм.');
+      toast(game.looseScrews(scene.facing()).length ? 'Торкніться незатягнутого гвинта. Він трохи стирчить над мостом.' : 'Незатягнуті гвинти на іншому боці. Переверніть механізм.');
       return;
     }
     game.tighten(screw.id);
@@ -481,8 +469,7 @@ function onToolButton() {
   selectedKind = null;
   renderTray();
   // A loose screw on the far face would be unreachable, so turn the watch round.
-  const reachable = game.looseScrews().some((p) => p.side === scene.facing());
-  if (!reachable) scene.turnTo(game.looseScrews()[0].side);
+  if (!game.looseScrews(scene.facing()).length) scene.turnTo(game.looseScrews()[0].side);
   toast('Торкніться гвинта, щоб затягнути його.');
 }
 
@@ -492,7 +479,7 @@ function onHint() {
   if (!suggestion) return;
   game.hints += 1;
   const { type, part } = suggestion;
-  if (part.side !== 'any' && part.side !== scene.facing()) scene.turnTo(part.side);
+  if (!onFace(part, scene.facing())) scene.turnTo(part.side);
   if (type === 'tighten') {
     setTool(TOOLS.SCREWDRIVER);
     selectedKind = null;
@@ -518,14 +505,9 @@ function onHint() {
 
 function enterWinding() {
   stopTimer();
-  dom.tools.hidden = true;
-  dom.tray.hidden = true;
-  dom.info.hidden = true;
-  dom.admire.hidden = true;
-  dom.wind.hidden = false;
+  showPanel('wind');
   dom.windFill.style.width = `${(windClicks / WIND_CLICKS) * 100}%`;
   if (scene.facing() !== 'dial') scene.turnTo('dial');
-  syncBenchHeight();
 }
 
 function attachWinding() {
@@ -588,11 +570,7 @@ function finishWatch() {
 
 function enterAdmire({ sweep }) {
   stopTimer();
-  dom.tools.hidden = true;
-  dom.tray.hidden = true;
-  dom.info.hidden = true;
-  dom.wind.hidden = true;
-  dom.admire.hidden = false;
+  showPanel('admire');
   dom.progressText.textContent = LEVELS[game.level].name;
   dom.progressFill.style.width = '100%';
   dom.timer.textContent = formatTime(game.elapsedMs);
@@ -600,7 +578,6 @@ function enterAdmire({ sweep }) {
   scene.startRunning({ sweep });
   scene.turnTo('dial');
   dom.btnBack.textContent = 'Відкрити кришку';
-  syncBenchHeight();
 }
 
 // ---- Wiring
@@ -614,10 +591,7 @@ function wire() {
   });
   attachWinding();
 
-  $('btn-menu').addEventListener('click', () => {
-    save();
-    history.back();
-  });
+  $('btn-menu').addEventListener('click', () => history.back());
   dom.btnFlip.addEventListener('click', () => {
     dom.btnFlip.classList.remove('nudge');
     scene.flip();
@@ -649,18 +623,14 @@ function wire() {
   window.addEventListener('popstate', () => {
     if (game) {
       save();
-      show(null);
       renderMenu();
-    } else {
-      // An entry left over from a reload mid-game: step past it, or Back seems dead.
-      history.back();
     }
   });
   window.addEventListener('pagehide', save);
   document.addEventListener('visibilitychange', () => {
     if (!game || !timerHandle) return;
     if (document.hidden) {
-      game.elapsedMs = performance.now() - timerFrom;
+      syncElapsed();
       save();
     } else {
       timerFrom = performance.now() - game.elapsedMs;
@@ -692,6 +662,8 @@ function boot() {
   const pictures = scene.thumbnails([...firstOfKind.values()]);
   thumbs = new Map([...firstOfKind].map(([kind, id]) => [kind, pictures.get(id)]));
   wire();
+  // A reload mid-game lands on the game's history entry: leave it, so Back still works.
+  if (history.state?.game) history.back();
   renderMenu();
   dom.splash.hidden = true;
 
