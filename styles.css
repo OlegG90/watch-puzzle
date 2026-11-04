@@ -283,6 +283,13 @@ body.playing #stage { top: calc(112px + var(--safe-t)); bottom: calc(var(--bench
 .big-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--ink); }
 #result-stars { font-size: 34px; letter-spacing: 6px; color: var(--gold); }
 
+#reference { justify-content: flex-start; background: var(--bench); }
+#btn-reference-close { position: sticky; top: 0; flex: none; align-self: flex-end; z-index: 1; }
+#reference-views { display: flex; flex-direction: column; gap: 18px; width: min(520px, 100%); }
+#reference-views figure { margin: 0; }
+#reference-views img { display: block; width: 100%; height: auto; }
+#reference-views figcaption { margin-top: 4px; color: var(--ink-soft); font-size: 13.5px; }
+
 /* A phone on its side: the bench moves to the right, the watch keeps the height. */
 @media (orientation: landscape) and (max-height: 520px) {
   body.playing #stage { top: calc(56px + var(--safe-t)); bottom: 0; right: calc(208px + var(--safe-r)); }

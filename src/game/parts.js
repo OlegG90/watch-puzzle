@@ -209,6 +209,16 @@ PARTS.forEach((cover, index) => {
   cover.requires = hidden.map((p) => p.id);
 });
 
+const underDial = (p) => p.side === 'dial' && p.hitZ > PARTS.find((d) => d.id === 'dial').hitZ;
+const idsWhere = (test) => PARTS.filter(test).map((p) => p.id);
+
+/** The reference pictures: what each one shows, and from which face. */
+export const REFERENCE_VIEWS = [
+  { key: 'refTrainSide', side: 'train', ids: idsWhere((p) => p.side === 'train' && p.id !== 'caseBack' || p.id === 'mainplate') },
+  { key: 'refUnderDial', side: 'dial', ids: idsWhere((p) => underDial(p) || p.id === 'mainplate') },
+  { key: 'refFinished', side: 'dial', ids: idsWhere((p) => p.id !== 'caseBack') },
+];
+
 /** Whether this part is fitted from the given face of the movement. */
 export const onFace = (part, side) => part.side === 'any' || part.side === side;
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GEARS, MESHES } from '../src/game/layout.js';
-import { PARTS, PART_BY_ID } from '../src/game/parts.js';
+import { PARTS, PART_BY_ID, REFERENCE_VIEWS } from '../src/game/parts.js';
 import { Game, grade } from '../src/game/state.js';
 import { CENTRE_RATIOS, dialSeconds, meshPhase, trainAngles } from '../src/game/train.js';
 
@@ -136,6 +136,14 @@ test('a tap cannot reach parts hidden under the dial or the case back', () => {
   assert.ok(!visible().includes('trainBridge'));
   assert.ok(visible().includes('caseBack'));
   assert.ok(visible().includes('minuteHand'));
+});
+
+test('the reference pictures show every part but the case back, from the right face', () => {
+  const shown = new Set(REFERENCE_VIEWS.flatMap((v) => v.ids));
+  for (const p of PARTS) assert.equal(shown.has(p.id), p.id !== 'caseBack', p.id);
+  const [trainSide, underDial] = REFERENCE_VIEWS;
+  assert.ok(trainSide.ids.includes('balance') && !trainSide.ids.includes('cannon'));
+  assert.ok(underDial.ids.includes('cannon') && !underDial.ids.includes('dial') && !underDial.ids.includes('hourHand'));
 });
 
 test('tighten only works once, on a fitted screw', () => {

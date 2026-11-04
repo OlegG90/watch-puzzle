@@ -24,6 +24,7 @@ const BEAT_FRAME_MS = 1000 / BEATS_PER_SECOND;
 const SET_HANDS_MS = 1600;
 const HINT_MS = 2600;
 const THUMB_PX = 128;
+const THUMB_TILT = 0.45;
 
 const easeOut = (t) => 1 - (1 - t) ** 3;
 
@@ -488,26 +489,39 @@ export class WatchScene {
 
   /** Renders one picture per part. Call while the canvas is hidden behind the splash. */
   thumbnails(ids) {
+    const shots = ids.map((id) => ({ key: id, ids: [id], side: PART_BY_ID[id].side }));
+    return this.stills(shots, THUMB_PX, THUMB_TILT);
+  }
+
+  /**
+   * Renders still pictures of groups of parts, fully assembled and framed to fit.
+   * @param {{key: string, ids: string[], side: string}[]} shots
+   * @returns {Map<string, string>} key → image data URL
+   */
+  stills(shots, size, tilt) {
     const stage = new THREE.Scene();
     stage.environment = this.scene.environment;
-    stage.environmentIntensity = 0.9; // brighter than the bench: pictures sit on a dark card
+    stage.environmentIntensity = 0.7; // brighter than the bench: pictures sit on a dark card
     const light = new THREE.DirectionalLight(0xffffff, 1.4);
     light.position.set(-1, 2, 3);
     stage.add(light);
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
-    const shadows = this.renderer.shadowMap.enabled;
-    this.renderer.shadowMap.enabled = false;
     const ratio = this.renderer.getPixelRatio();
     this.renderer.setPixelRatio(1);
-    this.renderer.setSize(THUMB_PX, THUMB_PX, false);
+    this.renderer.setSize(size, size, false);
+    const angles = trainAngles(0);
 
     const pictures = new Map();
-    for (const id of ids) {
-      const part = PART_BY_ID[id];
-      const object = this.makeObject(id);
+    for (const shot of shots) {
       const holder = new THREE.Group();
-      holder.add(object);
-      holder.rotation.set(part.side === 'dial' ? 0.45 : -0.45, part.side === 'dial' ? Math.PI : 0, 0);
+      for (const id of shot.ids) {
+        const object = this.makeObject(id);
+        object.position.set(...PART_BY_ID[id].pos, 0);
+        if (SPIN[id]) object.rotation.z = angles[SPIN[id]];
+        holder.add(object);
+      }
+      // Top edge away from the viewer, on either face, so both catch the same light.
+      holder.rotation.set(-tilt, shot.side === 'dial' ? Math.PI : 0, 0, 'XYZ');
       stage.add(holder);
       holder.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(holder);
@@ -519,11 +533,10 @@ export class WatchScene {
       camera.lookAt(centre.x, centre.y, centre.z);
       camera.updateProjectionMatrix();
       this.renderer.render(stage, camera);
-      pictures.set(id, this.canvas.toDataURL('image/png'));
+      pictures.set(shot.key, this.canvas.toDataURL('image/png'));
       stage.remove(holder);
-      disposeObject(object);
+      disposeObject(holder);
     }
-    this.renderer.shadowMap.enabled = shadows;
     this.renderer.setPixelRatio(ratio);
     this.resize();
     return pictures;

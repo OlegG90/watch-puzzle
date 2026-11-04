@@ -1,6 +1,6 @@
 // The game screen: connects the rules (Game), the stage (WatchScene) and the DOM.
 
-import { LEVELS, PARTS, onFace } from './game/parts.js';
+import { LEVELS, PARTS, REFERENCE_VIEWS, onFace } from './game/parts.js';
 import {
   LANGUAGES, getLanguage, gradeLabel, levelName, levelNote, partDesc, partName, setLanguage, t,
 } from './i18n/index.js';
@@ -16,6 +16,8 @@ const LANGUAGE_KEY = 'godynnykar.language.v1';
 const WIND_CLICKS = 24;
 const WIND_PX_PER_CLICK = 16;
 const DRAG_START_PX = 8;
+const REFERENCE_PX = 720;
+const REFERENCE_TILT = 0.12;
 const FINGER_CLEARANCE = 64; // the held part floats above the finger, so it stays visible
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +30,7 @@ const dom = {
   wind: $('wind'), windStrip: $('wind-strip'), windFill: document.querySelector('#wind-bar span'),
   admire: $('admire'), btnBack: $('btn-admire-back'), btnSound: $('btn-sound'),
   btnLang: $('btn-lang'), menuLang: $('menu-lang'),
+  reference: $('reference'), referenceViews: $('reference-views'),
 };
 
 // Private windows and full disks make storage throw. The game must still play.
@@ -64,7 +67,7 @@ let infoPart = null; // what the info panel describes; null shows the instructio
 // ---- Screens
 
 function show(screen) {
-  for (const s of [dom.menu, dom.result]) s.hidden = s !== screen;
+  for (const s of [dom.menu, dom.result, dom.reference]) s.hidden = s !== screen;
 }
 
 function setPlaying(playing) {
@@ -515,6 +518,34 @@ function onHint() {
   refresh();
 }
 
+// ---- Reference pictures
+
+/** Drawn on first use, since most games may never need them. */
+function buildReference() {
+  const pictures = scene.stills(REFERENCE_VIEWS, REFERENCE_PX, REFERENCE_TILT);
+  for (const view of REFERENCE_VIEWS) {
+    const figure = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = pictures.get(view.key);
+    img.alt = '';
+    img.draggable = false;
+    const caption = document.createElement('figcaption');
+    caption.dataset.i18n = view.key;
+    caption.textContent = t(view.key);
+    figure.append(img, caption);
+    dom.referenceViews.append(figure);
+  }
+}
+
+function openReference() {
+  sound.unlock();
+  if (!dom.referenceViews.children.length) buildReference();
+  show(dom.reference);
+  dom.reference.scrollTop = 0;
+  // An entry of its own, so the phone's Back button closes the pictures, not the game.
+  history.pushState({ game: true, reference: true }, '');
+}
+
 // ---- Winding, the reward
 
 function enterWinding() {
@@ -667,6 +698,8 @@ function wire() {
   dom.btnTool.addEventListener('click', onToolButton);
   $('btn-hint').addEventListener('click', onHint);
   $('btn-view').addEventListener('click', () => scene.resetView());
+  $('btn-reference').addEventListener('click', openReference);
+  $('btn-reference-close').addEventListener('click', () => history.back());
 
   $('btn-admire-flip').addEventListener('click', () => scene.flip());
   dom.btnBack.addEventListener('click', () => {
@@ -694,7 +727,9 @@ function wire() {
 
   // The phone's Back button leaves the game for the menu, not the whole app.
   window.addEventListener('popstate', () => {
-    if (game) {
+    if (!dom.reference.hidden) {
+      show(null);
+    } else if (game) {
       save();
       renderMenu();
     }
