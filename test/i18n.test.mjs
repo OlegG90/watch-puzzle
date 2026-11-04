@@ -14,7 +14,7 @@ afterEach(() => setLanguage(DEFAULT_LANGUAGE));
 test('English is the default, and unknown saved values fall back to it', () => {
   assert.equal(DEFAULT_LANGUAGE, 'en');
   assert.equal(getLanguage(), 'en');
-  for (const bad of [null, undefined, 'fr', 42, '__proto__', 'constructor']) {
+  for (const bad of [null, undefined, 'fr', 42, '__proto__', 'constructor', ['uk']]) {
     setLanguage('uk');
     setLanguage(bad);
     assert.equal(getLanguage(), 'en', String(bad));

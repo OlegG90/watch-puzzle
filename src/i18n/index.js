@@ -15,7 +15,7 @@ export const getLanguage = () => current;
 
 /** Falls back to the default for anything unknown, such as a corrupted saved value. */
 export function setLanguage(code) {
-  current = Object.hasOwn(LANGUAGES, code) ? code : DEFAULT_LANGUAGE;
+  current = typeof code === 'string' && Object.hasOwn(LANGUAGES, code) ? code : DEFAULT_LANGUAGE;
 }
 
 const dictionary = () => LANGUAGES[current].dictionary;
