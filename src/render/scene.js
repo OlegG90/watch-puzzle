@@ -199,10 +199,15 @@ export class WatchScene {
     this.resetView(false);
   }
 
-  fit(id) {
-    const part = PART_BY_ID[id];
+  /** A new object for this part, standing at its slot. */
+  makePlaced(id) {
     const object = this.makeObject(id);
-    object.position.set(part.pos[0], part.pos[1], 0);
+    object.position.set(...PART_BY_ID[id].pos, 0);
+    return object;
+  }
+
+  fit(id) {
+    const object = this.makePlaced(id);
     this.watch.add(object);
     this.objects.set(id, object);
     if (id === 'case') this.holder.visible = false;
@@ -515,8 +520,7 @@ export class WatchScene {
     for (const shot of shots) {
       const holder = new THREE.Group();
       for (const id of shot.ids) {
-        const object = this.makeObject(id);
-        object.position.set(...PART_BY_ID[id].pos, 0);
+        const object = this.makePlaced(id);
         if (SPIN[id]) object.rotation.z = angles[SPIN[id]];
         holder.add(object);
       }
